@@ -1,4 +1,8 @@
-require('dotenv').config();
+const requestUrl = SHOWBOX_PROXY_URL
+  ? `${SHOWBOX_PROXY_URL}${encodeURIComponent(apiUrl)}`
+  : apiUrl;
+
+const response = await axios.get(requestUrl, {require('dotenv').config();
 const axios = require('axios');
 
 // TMDB API Configuration (for convertImdbToTmdb helper)
