@@ -1,8 +1,4 @@
-const requestUrl = SHOWBOX_PROXY_URL
-  ? `${SHOWBOX_PROXY_URL}${encodeURIComponent(apiUrl)}`
-  : apiUrl;
-
-const response = await axios.get(requestUrl, {require('dotenv').config();
+require('dotenv').config();
 const axios = require('axios');
 
 // TMDB API Configuration (for convertImdbToTmdb helper)
@@ -12,6 +8,7 @@ const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 // API Base URL
 const FEBAPI_BASE_URL = 'https://febapi.nuvioapp.space/api/media';
 const SHOWBOX_PROXY_URL = process.env.SHOWBOX_PROXY_URL_VALUE || '';
+
 /**
  * Parse quality from label string
  */
