@@ -7,7 +7,7 @@ const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
 // API Base URL
 const FEBAPI_BASE_URL = 'https://febapi.nuvioapp.space/api/media';
-
+const SHOWBOX_PROXY_URL = process.env.SHOWBOX_PROXY_URL_VALUE || '';
 /**
  * Parse quality from label string
  */
