@@ -369,13 +369,17 @@ const getStreamsFromTmdbId = async (tmdbType, tmdbId, seasonNum = null, episodeN
 
         console.log(`[ShowBox] Making request to: ${apiUrl.replace(/\?cookie=.*/, '?cookie=***')}`); // Hide cookie in logs
 
-        // Make API request
-        const response = await axios.get(apiUrl, {
-            timeout: 30000,
-            headers: {
-                'User-Agent': 'NuvioStreamsAddon/1.0'
-            }
-        });
+        // Make API request through proxy if configured
+const requestUrl = SHOWBOX_PROXY_URL
+  ? `${SHOWBOX_PROXY_URL}${encodeURIComponent(apiUrl)}`
+  : apiUrl;
+
+const response = await axios.get(requestUrl, {
+  timeout: 30000,
+  headers: {
+    'User-Agent': 'NuvioStreamsAddon/1.0'
+  }
+});
 
         if (!response.data || !response.data.success) {
             console.log(`[ShowBox] API returned unsuccessful response`);
