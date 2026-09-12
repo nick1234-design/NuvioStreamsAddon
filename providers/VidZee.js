@@ -1,18 +1,13 @@
-```js
 const axios = require('axios');
 
-// Function to parse command line arguments
 const parseArgs = () => {
     const args = process.argv.slice(2);
     const options = {};
     let i = 0;
-
     while (i < args.length) {
         const arg = args[i];
-
         if (arg.startsWith('--')) {
             const key = arg.substring(2);
-
             if (i + 1 < args.length && !args[i + 1].startsWith('--')) {
                 options[key] = args[i + 1];
                 i++;
@@ -20,10 +15,8 @@ const parseArgs = () => {
                 options[key] = true;
             }
         }
-
         i++;
     }
-
     return options;
 };
 
@@ -50,137 +43,106 @@ const getVidZeeStreams = async (tmdbId, mediaType, seasonNum, episodeNum) => {
         }
     }
 
-    // Current VidZee server names
-    const servers = ['dcloud', 'tik', 'ipcloud', 'v6:Hindi'];
+    const servers = [3, 4, 5];
 
-    const streamPromises = servers.map(async (server) => {
-        let targetApiUrl;
+    const streamPromises = servers.map(async (sr) => {
+        let targetApiUrl = `https://player.vidzee.wtf/api/server?id=${tmdbId}&sr=${sr}`;
 
-        if (mediaType === 'movie') {
-            targetApiUrl =
-                `https://core.vidzee.wtf/streams/movie/${tmdbId}` +
-                `?s=${encodeURIComponent(server)}&e=0`;
-        } else {
-            targetApiUrl =
-                `https://core.vidzee.wtf/streams/tv/${tmdbId}/${seasonNum}/${episodeNum}` +
-                `?s=${encodeURIComponent(server)}&e=0`;
+        if (mediaType === 'tv') {
+            targetApiUrl += `&ss=${seasonNum}&ep=${episodeNum}`;
         }
 
-        // Keep your existing proxy support
+        let finalApiUrl;
+
+        let headers = {
+            'Referer': 'https://core.vidzee.wtf/'
+        };
+
+        let timeout = 7000;
+
         const proxyBaseUrl =
             process.env.VIDZEE_PROXY_URL ||
             process.env.SHOWBOX_PROXY_URL_VALUE;
 
-        const finalApiUrl = proxyBaseUrl
-            ? proxyBaseUrl + encodeURIComponent(targetApiUrl)
-            : targetApiUrl;
+        if (proxyBaseUrl) {
+            finalApiUrl = proxyBaseUrl + encodeURIComponent(targetApiUrl);
+        } else {
+            finalApiUrl = targetApiUrl;
+        }
 
-        console.log(`[VidZee] Fetching from server ${server}: ${targetApiUrl}`);
+        console.log(`[VidZee] Fetching from server ${sr}: ${targetApiUrl}`);
 
         try {
             const response = await axios.get(finalApiUrl, {
-                headers: {
-                    'Referer': 'https://player.vidzee.wtf/',
-                    'User-Agent':
-                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36'
-                },
-                timeout: 10000
+                headers: headers,
+                timeout: timeout
             });
 
             const responseData = response.data;
 
             if (!responseData || typeof responseData !== 'object') {
                 console.error(
-                    `[VidZee ${server}] Invalid response data from API.`
+                    `[VidZee S${sr}] Error: Invalid response data from API.`
                 );
                 return [];
             }
 
-            /*
-             * Current VidZee e=0 responses are normally:
-             *
-             * {
-             *   "url": "...",
-             *   "language": "...",
-             *   "headers": {...}
-             * }
-             *
-             * Keep support for an array just in case the API returns
-             * multiple sources in a response.
-             */
+            if (responseData.tracks) {
+                delete responseData.tracks;
+            }
+
             let apiSources = [];
 
-            if (Array.isArray(responseData)) {
-                apiSources = responseData;
-            } else if (responseData.url) {
-                apiSources = [responseData];
-            } else if (responseData.link) {
+            if (responseData.url && Array.isArray(responseData.url)) {
+                apiSources = responseData.url;
+            } else if (
+                responseData.link &&
+                typeof responseData.link === 'string'
+            ) {
                 apiSources = [responseData];
             }
 
-            if (apiSources.length === 0) {
+            if (!apiSources || apiSources.length === 0) {
                 console.log(
-                    `[VidZee ${server}] No stream source found in API response.`
+                    `[VidZee S${sr}] No stream sources found in API response.`
                 );
                 return [];
             }
 
             const streams = apiSources
-                .map((sourceItem) => {
-                    const streamUrl = sourceItem.url || sourceItem.link;
+                .map(sourceItem => {
+                    const label =
+                        sourceItem.name ||
+                        sourceItem.type ||
+                        'VidZee Stream';
 
-                    if (!streamUrl) {
-                        return null;
-                    }
+                    const quality = String(label).match(/^\d+$/)
+                        ? `${label}p`
+                        : label;
 
                     const language =
                         sourceItem.language ||
-                        sourceItem.lang ||
-                        'Unknown';
-
-                    // Try to get quality from the response if available.
-                    let quality =
-                        sourceItem.quality ||
-                        sourceItem.name ||
-                        sourceItem.type ||
-                        'VidZee';
-
-                    quality = String(quality);
-
-                    if (/^\d+$/.test(quality)) {
-                        quality = `${quality}p`;
-                    }
-
-                    /*
-                     * VidZee/CDN requests require the player Referer.
-                     * Keep it in behaviorHints so Stremio knows to send it.
-                     */
-                    const streamHeaders = {
-                        'Referer': 'https://player.vidzee.wtf/',
-                        ...(sourceItem.headers || {})
-                    };
-
-                    // Make sure the required player Referer wins.
-                    streamHeaders['Referer'] = 'https://player.vidzee.wtf/';
+                        sourceItem.lang;
 
                     return {
-                        title: `VidZee ${server} - ${quality}`,
-                        url: streamUrl,
+                        title: `VidZee S${sr} - ${quality}`,
+                        url: sourceItem.link,
                         quality: quality,
                         language: language,
-                        provider: 'VidZee',
-                        size: 'Unknown size',
-
+                        provider: "VidZee",
+                        size: "Unknown size",
                         behaviorHints: {
                             notWebReady: true,
-                            headers: streamHeaders
+                            headers: {
+                                'Referer': 'https://core.vidzee.wtf/'
+                            }
                         }
                     };
                 })
-                .filter(Boolean);
+                .filter(stream => stream.url);
 
             console.log(
-                `[VidZee ${server}] Successfully extracted ${streams.length} streams.`
+                `[VidZee S${sr}] Successfully extracted ${streams.length} streams.`
             );
 
             return streams;
@@ -188,25 +150,15 @@ const getVidZeeStreams = async (tmdbId, mediaType, seasonNum, episodeNum) => {
         } catch (error) {
             if (error.response) {
                 console.error(
-                    `[VidZee ${server}] Error fetching: ` +
-                    `${error.response.status} ${error.response.statusText}`
+                    `[VidZee S${sr}] Error fetching: ${error.response.status} ${error.response.statusText}`
                 );
-
-                if (error.response.data) {
-                    console.error(
-                        `[VidZee ${server}] Response:`,
-                        typeof error.response.data === 'string'
-                            ? error.response.data.substring(0, 500)
-                            : error.response.data
-                    );
-                }
             } else if (error.request) {
                 console.error(
-                    `[VidZee ${server}] Error fetching: No response received.`
+                    `[VidZee S${sr}] Error fetching: No response received.`
                 );
             } else {
                 console.error(
-                    `[VidZee ${server}] Error fetching:`,
+                    `[VidZee S${sr}] Error fetching:`,
                     error.message
                 );
             }
@@ -219,11 +171,10 @@ const getVidZeeStreams = async (tmdbId, mediaType, seasonNum, episodeNum) => {
     const allStreams = allStreamsNested.flat();
 
     console.log(
-        `[VidZee] Found a total of ${allStreams.length} streams from servers: ${servers.join(', ')}.`
+        `[VidZee] Found a total of ${allStreams.length} streams from servers ${servers.join(', ')}.`
     );
 
     return allStreams;
 };
 
 module.exports = { getVidZeeStreams };
-```
