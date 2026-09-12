@@ -2204,7 +2204,9 @@ const getStreamsFromTmdbId = async (tmdbType, tmdbId, seasonNum = null, episodeN
                         streamsFromThisShareInfo.push({
                             title: streamTitle, 
                             url: source.url,
-                            quality: parseQualityFromLabel(source.label),
+                            quality: parseQualityFromLabel(
+    `${source.label || ''} ${key5FromDirectSource || ''}`
+),
                             codecs: extractCodecDetails(key5FromDirectSource || streamTitle) 
                         });
                     }
