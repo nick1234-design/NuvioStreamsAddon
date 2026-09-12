@@ -1473,7 +1473,9 @@ const fetchSourcesForSingleFid = async (fidToProcess, shareKey, regionPreference
 
     try {
         const response = await axios.post(finalPostUrl, postDataForAxios, axiosConfig);
-        const playerContent = response.data;
+        const playerContent = typeof response.data === 'string'
+    ? response.data
+    : JSON.stringify(response.data);
 
         // Mark the region as available if the request succeeded
         if (global.lastRequestedRegion && global.lastRequestedRegion.used) {
