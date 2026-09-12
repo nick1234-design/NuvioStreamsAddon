@@ -29,7 +29,7 @@ const ensureCacheDir = async () => {
 };
 ensureCacheDir();
 
-const BASE_URL = 'https://4khdhub.fans';
+const BASE_URL = 'https://4khdhub.one';
 const TMDB_API_KEY = '439c478a771f35c05022f9feabcca01c';
 
 // Polyfill for atob if not available globally
