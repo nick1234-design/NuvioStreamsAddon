@@ -10,9 +10,6 @@ const {
  *
  * This provider receives a FebBox share key and uses the
  * FebBox resolver to return direct playable streams.
- *
- * The catalog/share-key discovery remains separate from
- * the playback resolver.
  */
 
 function normalizeShareKey(value) {
@@ -22,7 +19,6 @@ function normalizeShareKey(value) {
 
   const trimmed = value.trim();
 
-  // Full FebBox share URL
   const match = trimmed.match(
     /febbox\.com\/share\/([A-Za-z0-9_-]+)/i
   );
@@ -31,8 +27,7 @@ function normalizeShareKey(value) {
     return match[1];
   }
 
-  // Raw share key
-  if (/^[A-Za-z0-9_-]{4,64}$/.test(trimmed)) {
+  if (/^[A-Za-z0-9_-]{4,40}$/.test(trimmed)) {
     return trimmed;
   }
 
@@ -103,8 +98,8 @@ async function getEpisodeStreams({
   if (
     !normalizedShareKey ||
     !febboxToken ||
-    !season ||
-    !episode
+    season === undefined ||
+    episode === undefined
   ) {
     return [];
   }
@@ -113,8 +108,8 @@ async function getEpisodeStreams({
     return await resolveEpisode({
       token: febboxToken,
       shareKey: normalizedShareKey,
-      seasonNumber: Number(season),
-      episodeNumber: Number(episode)
+      season: Number(season),
+      episode: Number(episode)
     });
   } catch (error) {
     console.error(
