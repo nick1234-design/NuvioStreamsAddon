@@ -2300,8 +2300,72 @@ const getStreamsFromTmdbIdSingle = async (tmdbType, tmdbId, seasonNum = null, ep
             console.log(`  ... and ${finalFilteredStreams.length - 5} more streams`);
         }
     }
-    console.timeEnd(mainTimerLabel);
+        console.timeEnd(mainTimerLabel);
     return finalFilteredStreams;
+};
+
+// Try multiple user cookies, one at a time
+const getStreamsFromTmdbId = async (
+    tmdbType,
+    tmdbId,
+    seasonNum = null,
+    episodeNum = null,
+    regionPreference = null,
+    userCookies = null,
+    userScraperApiKey = null
+) => {
+    const cookies = Array.isArray(userCookies)
+        ? userCookies.filter(cookie => cookie && cookie.trim())
+        : (userCookies ? [userCookies] : []);
+
+    if (cookies.length === 0) {
+        return await getStreamsFromTmdbIdSingle(
+            tmdbType,
+            tmdbId,
+            seasonNum,
+            episodeNum,
+            regionPreference,
+            null,
+            userScraperApiKey
+        );
+    }
+
+    console.log(`[CookieManager] Trying ${cookies.length} user cookie(s).`);
+
+    for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i];
+
+        console.log(`[CookieManager] Trying user cookie ${i + 1}/${cookies.length}.`);
+
+        // Clear the previous cookie selected for this request
+        if (global.currentRequestConfig) {
+            global.currentRequestConfig.chosenFebboxBaseCookieForRequest = null;
+        }
+
+        try {
+            const streams = await getStreamsFromTmdbIdSingle(
+                tmdbType,
+                tmdbId,
+                seasonNum,
+                episodeNum,
+                regionPreference,
+                cookie,
+                userScraperApiKey
+            );
+
+            if (streams && streams.length > 0) {
+                console.log(`[CookieManager] Cookie ${i + 1} succeeded with ${streams.length} stream(s).`);
+                return streams;
+            }
+
+            console.log(`[CookieManager] Cookie ${i + 1} returned no streams. Trying next cookie...`);
+        } catch (error) {
+            console.warn(`[CookieManager] Cookie ${i + 1} failed: ${error.message}`);
+        }
+    }
+
+    console.log('[CookieManager] All user cookies failed.');
+    return [];
 };
 
 // Function to handle TV shows with seasons and episodes
