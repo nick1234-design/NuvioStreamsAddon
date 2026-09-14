@@ -1087,7 +1087,7 @@ builder.defineStreamHandler(async (args) => {
                 try {
                     console.log(`[ShowBox] Attempt ${attempt}/${MAX_SHOWBOX_RETRIES}`);
                     // Pass allCookies array to ShowBox - it will select the best cookie with fallback
-                    const streams = await getStreamsFromTmdbId(tmdbTypeFromId, tmdbId, seasonNum, episodeNum, userRegionPreference, allCookies[0], userScraperApiKey);
+                    const streams = await getStreamsFromTmdbId(tmdbTypeFromId, tmdbId, seasonNum, episodeNum, userRegionPreference, allCookies, userScraperApiKey);
 
                     if (streams && streams.length > 0) {
                         console.log(`[ShowBox] Successfully fetched ${streams.length} streams on attempt ${attempt}.`);
