@@ -5,6 +5,11 @@ const cheerio = require('cheerio');
 const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
+
+const {
+    getMovieStreams: getFebboxDirectMovieStreams,
+    getEpisodeStreams: getFebboxDirectEpisodeStreams
+} = require('./FebboxDirect');
 const Redis = require('ioredis'); // Added for Redis
 
 // --- Redis Cache Initialization ---
