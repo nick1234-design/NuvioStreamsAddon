@@ -3,169 +3,152 @@
 const axios = require('axios');
 const { toCookieHeader, isPlausibleToken } = require('./auth');
 const { FebBoxError } = require('./types');
-const { redactError } = require('../../security/redact');
-const { incrementCounter, METRIC } = require('../../metrics/metrics');
 
-// SSRF hardening: this client only ever talks to a fixed, hardcoded allowlist
-// of first-party FebBox hosts.
+const redactError = (err) => ({
+  message: err && err.message ? err.message : 'Unknown error'
+});
+
+const incrementCounter = () => {};
+
+const METRIC = {
+  FEBBOX_RATE_LIMITED: 'FEBBOX_RATE_LIMITED'
+};
+
 const FEBBOX_ORIGIN = 'https://www.febbox.com';
-const ALLOWED_HOSTS = new Set(['www.febbox.com']);
 
-const DEFAULT_TIMEOUT_MS = 12000;
+const ALLOWED_HOSTS = new Set([
+  'www.febbox.com'
+]);
 
-const USER_AGENT =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+const DEFAULT_TIMEOUT = 15000;
+const DEFAULT_RETRIES = 2;
 
-function assertAllowedUrl(url) {
-  const u = new URL(url);
-
-  if (!ALLOWED_HOSTS.has(u.host)) {
-    throw new Error(`Refusing to contact non-allowlisted host: ${u.host}`);
-  }
-
-  return u;
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function febboxGet(
-  path,
-  { token, shareKey, params, headers, timeout } = {}
-) {
-  const url = `${FEBBOX_ORIGIN}${path}`;
-
-  assertAllowedUrl(url);
-
-  if (token && !isPlausibleToken(token)) {
-    throw new FebBoxError('Malformed FebBox token', 'AUTH_INVALID');
+function classifyStatus(status) {
+  if (status === 401 || status === 403) {
+    return 'AUTH_INVALID';
   }
 
-  const reqHeaders = {
-    'User-Agent': USER_AGENT,
-    'X-Requested-With': 'XMLHttpRequest',
-    Accept: 'application/json, text/javascript, */*; q=0.01',
-    ...(shareKey
-      ? { Referer: `${FEBBOX_ORIGIN}/share/${shareKey}` }
-      : {}),
-    ...(token ? { Cookie: toCookieHeader(token) } : {}),
-    ...headers,
-  };
-
-  const maxAttempts = 3;
-  let lastErr;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const resp = await axios.get(url, {
-        params,
-        headers: reqHeaders,
-        timeout: timeout || DEFAULT_TIMEOUT_MS,
-        validateStatus: () => true,
-        maxRedirects: 3,
-      });
-
-      return classifyResponse(resp);
-    } catch (err) {
-      lastErr = err;
-
-      const transient =
-        err.code === 'ECONNABORTED' ||
-        err.code === 'ETIMEDOUT' ||
-        err.code === 'ECONNRESET' ||
-        err.code === 'ENOTFOUND';
-
-      if (!transient || attempt === maxAttempts) {
-        throw toFebBoxError(err);
-      }
-
-      await new Promise((r) => setTimeout(r, 250 * attempt));
-    }
+  if (status === 404) {
+    return 'NOT_FOUND';
   }
 
-  throw toFebBoxError(lastErr);
+  if (status === 429) {
+    return 'RATE_LIMITED';
+  }
+
+  if (status >= 500) {
+    return 'UPSTREAM_ERROR';
+  }
+
+  return 'UPSTREAM_ERROR';
 }
 
-function classifyResponse(resp) {
-  if (resp.status === 401 || resp.status === 403) {
+async function febboxGet(path, token, options = {}) {
+  if (!isPlausibleToken(token)) {
     throw new FebBoxError(
-      'FebBox rejected the token (unauthorized)',
+      'Invalid FebBox token',
       'AUTH_INVALID'
     );
   }
 
-  if (resp.status === 429) {
-    incrementCounter(METRIC.FEBBOX_RATE_LIMITED);
-    throw new FebBoxError(
-      'FebBox rate-limited this request',
-      'RATE_LIMITED'
-    );
+  const {
+    params = {},
+    timeout = DEFAULT_TIMEOUT,
+    retries = DEFAULT_RETRIES
+  } = options;
+
+  const url = new URL(path, FEBBOX_ORIGIN).toString();
+
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await axios.get(url, {
+        params,
+        timeout,
+        validateStatus: () => true,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json, text/plain, */*',
+          'Referer': `${FEBBOX_ORIGIN}/`,
+          'Cookie': toCookieHeader(token)
+        }
+      });
+
+      if (response.status >= 200 && response.status < 300) {
+        return response.data;
+      }
+
+      const code = classifyStatus(response.status);
+
+      if (code === 'RATE_LIMITED') {
+        incrementCounter(METRIC.FEBBOX_RATE_LIMITED);
+      }
+
+      throw new FebBoxError(
+        `FebBox request failed with status ${response.status}`,
+        code
+      );
+    } catch (err) {
+      lastError = err;
+
+      if (err instanceof FebBoxError) {
+        if (
+          err.code === 'AUTH_INVALID' ||
+          err.code === 'NOT_FOUND' ||
+          err.code === 'RATE_LIMITED'
+        ) {
+          throw err;
+        }
+      }
+
+      if (attempt < retries) {
+        await sleep(500 * (attempt + 1));
+        continue;
+      }
+
+      if (err instanceof FebBoxError) {
+        throw err;
+      }
+
+      const message = redactError(err).message || 'FebBox request failed';
+
+      throw new FebBoxError(
+        message,
+        'UPSTREAM_ERROR'
+      );
+    }
   }
 
-  if (resp.status === 404) {
-    throw new FebBoxError(
-      'FebBox resource not found',
-      'NOT_FOUND'
-    );
-  }
-
-  if (resp.status >= 500) {
-    throw new FebBoxError(
-      `FebBox upstream error (status ${resp.status})`,
-      'UPSTREAM_ERROR'
-    );
-  }
-
-  if (resp.status !== 200) {
-    throw new FebBoxError(
-      `Unexpected FebBox status ${resp.status}`,
-      'UPSTREAM_ERROR'
-    );
-  }
-
-  return resp.data;
-}
-
-function toFebBoxError(err) {
-  if (err instanceof FebBoxError) return err;
-
-  const safe = redactError(err);
-
-  if (
-    err &&
-    (err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT')
-  ) {
-    return new FebBoxError(
-      `FebBox request timed out: ${safe.message}`,
-      'UPSTREAM_TIMEOUT'
-    );
-  }
-
-  return new FebBoxError(
-    `FebBox request failed: ${safe.message}`,
+  throw new FebBoxError(
+    'FebBox request failed',
     'UPSTREAM_ERROR'
   );
 }
 
-async function listShareFiles({
-  token,
+async function listShareFiles(
   shareKey,
-  parentId = 0,
-}) {
-  if (!shareKey) {
-    throw new FebBoxError(
-      'shareKey is required',
-      'NOT_FOUND'
-    );
-  }
-
-  const data = await febboxGet('/file/file_share_list', {
+  token,
+  parentId = ''
+) {
+  const data = await febboxGet(
+    '/file/file_share_list',
     token,
-    shareKey,
-    params: {
-      share_key: shareKey,
-      pwd: '',
-      parent_id: parentId,
-      is_html: 0,
-    },
-  });
+    {
+      params: {
+        share_key: shareKey,
+        pwd: '',
+        parent_id: parentId,
+        is_html: 0
+      }
+    }
+  );
 
   const list =
     data &&
@@ -174,79 +157,55 @@ async function listShareFiles({
       ? data.data.file_list
       : [];
 
-  return list.map((f) => ({
-    fid: String(f.fid),
-    name: f.file_name || f.name || '',
-    isDir: Boolean(f.is_dir) || f.type === 'folder',
-    size: f.size || null,
-    raw: undefined,
+  return list.map(file => ({
+    fid: String(file.fid || file.id || ''),
+    name: file.name || '',
+    isDir: Boolean(
+      file.is_dir ??
+      file.isDir ??
+      file.type === 'folder'
+    ),
+    size:
+      file.size !== undefined
+        ? String(file.size)
+        : undefined,
+    raw: undefined
   }));
 }
 
-async function getVideoQualityLinks({
-  token,
-  shareKey,
+async function getVideoQualityLinks(
   fid,
-}) {
-  if (!fid) {
-    throw new FebBoxError(
-      'fid is required',
-      'NOT_FOUND'
-    );
-  }
-
+  token
+) {
   const data = await febboxGet(
     '/console/video_quality_list',
+    token,
     {
-      token,
-      shareKey,
-      params: { fid },
+      params: {
+        fid
+      }
     }
   );
 
-  const html =
-    data && typeof data.html === 'string'
-      ? data.html
-      : '';
-
-  return html;
+  return data && data.html
+    ? data.html
+    : '';
 }
 
-async function getQuota({ token }) {
+async function getQuota(token) {
   const data = await febboxGet(
     '/console/user_cards',
-    { token }
+    token
   );
 
-  const flow =
-    data &&
-    data.data &&
-    data.data.flow;
-
-  if (!flow) {
-    throw new FebBoxError(
-      'Unexpected quota response shape',
-      'UPSTREAM_ERROR'
-    );
-  }
-
-  const limitMB =
-    Number(flow.traffic_limit_mb) || 0;
-
-  const usageMB =
-    Number(flow.traffic_usage_mb) || 0;
-
-  return {
-    limitMB,
-    usageMB,
-    remainingMB: limitMB - usageMB,
-    isVip: Boolean(flow.is_vip),
-  };
+  return data && data.data
+    ? data.data
+    : data;
 }
 
 module.exports = {
   listShareFiles,
   getVideoQualityLinks,
   getQuota,
-  FEBBOX_ORIGIN,
+  FEBBOX_ORIGIN
 };
