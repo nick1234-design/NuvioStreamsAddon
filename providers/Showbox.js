@@ -2254,7 +2254,79 @@ const getStreamsFromTmdbIdSingle = async (tmdbType, tmdbId, seasonNum = null, ep
     });
 
     const nestedStreams = await Promise.all(streamPromises);
-    const allStreams = nestedStreams.flat();
+const allStreams = nestedStreams.flat();
+
+// Try the new direct FebBox resolver on the same FebBox shares.
+try {
+    const directFebboxPromises = febboxShareInfos.map(async (shareInfo) => {
+        try {
+            const febboxUrl = shareInfo.febbox_share_url;
+
+            const shareKeyMatch = febboxUrl &&
+                febboxUrl.match(/\/share\/([a-zA-Z0-9_-]+)/);
+
+            if (!shareKeyMatch) {
+                return [];
+            }
+
+            const shareKey = shareKeyMatch[1];
+
+            let directStreams = [];
+
+            if (
+                tmdbType === 'tv' &&
+                seasonNum !== null &&
+                episodeNum !== null
+            ) {
+                directStreams = await getFebboxDirectEpisodeStreams({
+                    shareKey,
+                    token: userCookie,
+                    season: seasonNum,
+                    episode: episodeNum
+                });
+            } else {
+                directStreams = await getFebboxDirectMovieStreams({
+                    shareKey,
+                    token: userCookie
+                });
+            }
+
+            if (!Array.isArray(directStreams)) {
+                return [];
+            }
+
+            return directStreams.map((stream) => ({
+                title: `${shareInfo.showbox_title || 'Unknown Title'} - ${stream.quality || 'ORG'} [FebBox Direct]`,
+                url: stream.url,
+                quality: stream.quality || 'ORG',
+                size: stream.size || 'Unknown size',
+                codecs: stream.codecs || [],
+                provider: 'FebBox Direct'
+            }));
+        } catch (error) {
+            console.log(
+                `[FebBox Direct] Failed for ${shareInfo.febbox_share_url}: ${error.message}`
+            );
+            return [];
+        }
+    });
+
+    const directFebboxResults = await Promise.all(directFebboxPromises);
+    const directFebboxStreams = directFebboxResults.flat();
+
+    if (directFebboxStreams.length > 0) {
+        console.log(
+            `[FebBox Direct] Added ${directFebboxStreams.length} direct FebBox stream(s).`
+        );
+
+        allStreams.push(...directFebboxStreams);
+    }
+}
+catch (error) {
+    console.log(
+        `[FebBox Direct] Integration failed: ${error.message}`
+    );
+}
     // END MODIFICATION
     
     // Fetch sizes for all streams concurrently
