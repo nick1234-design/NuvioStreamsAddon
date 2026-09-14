@@ -2147,7 +2147,7 @@ const convertImdbToTmdb = async (imdbId, regionPreference = null) => {
 // Exposed API for the Stremio addon
 // This will be a function to get streams from a TMDB ID
 // MODIFICATION: Accept scraperApiKey -> MODIFICATION: Remove scraperApiKey
-const getStreamsFromTmdbIdSingle = async ( (tmdbType, tmdbId, seasonNum = null, episodeNum = null, regionPreference = null, userCookie = null, userScraperApiKey = null) => {
+const getStreamsFromTmdbIdSingle = async (tmdbType, tmdbId, seasonNum = null, episodeNum = null, regionPreference = null, userCookie = null, userScraperApiKey = null) => {
     const mainTimerLabel = `getStreamsFromTmdbId_total_${tmdbType}_${tmdbId}` + (seasonNum ? `_s${seasonNum}` : '') + (episodeNum ? `_e${episodeNum}` : '');
     console.time(mainTimerLabel);
     console.log(`Getting streams for TMDB ${tmdbType}/${tmdbId}${seasonNum !== null ? `, Season ${seasonNum}` : ''}${episodeNum !== null ? `, Episode ${episodeNum}` : ''}`);
