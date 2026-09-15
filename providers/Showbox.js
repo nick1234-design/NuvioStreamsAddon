@@ -174,11 +174,28 @@ const getCookieForRequest = async (regionPreference = null, userCookie = null) =
         baseCookieToUse = global.currentRequestConfig.chosenFebboxBaseCookieForRequest;
     } else {
         // No request-cached cookie, so we need to select one.
-        // 1. Prioritize user-supplied cookie passed directly to this function
-        if (userCookie) {
-            console.log('[CookieManager] Using user-supplied cookie passed to function for this cycle.');
-            baseCookieToUse = userCookie;
+        // 1. Use configured ShowBox cookies
+const configuredCookies = [];
+
+if (userCookie && userCookie.trim()) {
+    configuredCookies.push(userCookie.trim());
+}
+
+if (global.currentRequestConfig && Array.isArray(global.currentRequestConfig.cookies)) {
+    for (const c of global.currentRequestConfig.cookies) {
+        if (c && c.trim() && !configuredCookies.includes(c.trim())) {
+            configuredCookies.push(c.trim());
         }
+    }
+}
+
+if (configuredCookies.length > 0) {
+    baseCookieToUse = configuredCookies[0];
+
+    console.log(
+        `[CookieManager] Using configured ShowBox cookie 1 of ${configuredCookies.length}.`
+    );
+}
         // 2. Prioritize user-supplied cookie from global (fallback for backward compatibility)
         else if (global.currentRequestUserCookie) {
             console.log('[CookieManager] Using user-supplied cookie from global state (legacy mode) for this cycle.');
