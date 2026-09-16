@@ -10,7 +10,15 @@ const {
     getMovieStreams: getFebboxDirectMovieStreams,
     getEpisodeStreams: getFebboxDirectEpisodeStreams
 } = require('./FebboxDirect');
-const Redis = require('ioredis'); // Added for Redis
+const Redis = require('ioredis');
+
+const {
+    pickCookie,
+    recordUsage,
+    markExhausted
+} = require('./febboxCookieQuota');
+
+// Added for Redis
 
 // --- Redis Cache Initialization ---
 let redisClient = null;
