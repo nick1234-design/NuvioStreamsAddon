@@ -198,7 +198,7 @@ if (global.currentRequestConfig && Array.isArray(global.currentRequestConfig.coo
 }
 
 if (configuredCookies.length > 0) {
-    baseCookieToUse = configuredCookies[0];
+    baseCookieToUse = pickCookie(configuredCookies);
 
     console.log(
         `[CookieManager] Using configured ShowBox cookie 1 of ${configuredCookies.length}.`
