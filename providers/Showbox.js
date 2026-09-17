@@ -289,6 +289,36 @@ const fetchStreamSize = async (url) => {
         return 'Unknown size';
     }
 };
+const fetchStreamSizeBytes = async (url) => {
+    if (!url || url.toLowerCase().includes('.m3u8')) {
+        return null;
+    }
+
+    try {
+        const response = await axios.head(url, {
+            timeout: 5000
+        });
+
+        const contentLength = response.headers['content-length'];
+
+        if (!contentLength) {
+            return null;
+        }
+
+        const sizeInBytes = parseInt(contentLength, 10);
+
+        return Number.isFinite(sizeInBytes) && sizeInBytes > 0
+            ? sizeInBytes
+            : null;
+
+    } catch (error) {
+        console.warn(
+            `[CookieQuota] Could not determine stream size: ${error.message}`
+        );
+
+        return null;
+    }
+};
 
 // MODIFICATION: Removed hardcoded SCRAPER_API_KEY
 // const SCRAPER_API_KEY = '96845d13e7a0a0d40fb4f148cd135ddc'; 
