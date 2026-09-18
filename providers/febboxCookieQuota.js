@@ -40,11 +40,17 @@ const fetchFebboxQuota = async (cookie) => {
         const flow = response.data?.data?.flow;
 
         if (!flow) {
-            console.warn(
-                `[CookieQuota] FebBox quota lookup failed with status ${response.status}`
-            );
-            return null;
-        }
+    console.warn(
+        `[CookieQuota] FebBox quota lookup failed with status ${response.status}`
+    );
+    console.warn(
+        `[CookieQuota] Response for failed cookie:`,
+        typeof response.data === 'string'
+            ? response.data.slice(0, 500)
+            : JSON.stringify(response.data).slice(0, 1000)
+    );
+    return null;
+}
 
         const usageMb = Number(flow.traffic_usage_mb);
         const limitMb = Number(flow.traffic_limit_mb);
