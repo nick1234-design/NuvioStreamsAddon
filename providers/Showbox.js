@@ -14,6 +14,7 @@ const Redis = require('ioredis');
 
 const {
     pickCookie,
+    pickCookieByFebboxQuota,
     recordUsage,
     markExhausted
 } = require('./febboxCookieQuota');
@@ -198,10 +199,10 @@ if (global.currentRequestConfig && Array.isArray(global.currentRequestConfig.coo
 }
 
 if (configuredCookies.length > 0) {
-    baseCookieToUse = pickCookie(configuredCookies);
+    baseCookieToUse = await pickCookieByFebboxQuota(configuredCookies);
 
     console.log(
-        `[CookieManager] Using configured ShowBox cookie 1 of ${configuredCookies.length}.`
+        `[CookieManager] Selected ShowBox cookie based on FebBox quota: ${configuredCookies.indexOf(baseCookieToUse) + 1} of ${configuredCookies.length}.`
     );
 }
         // 2. Prioritize user-supplied cookie from global (fallback for backward compatibility)
