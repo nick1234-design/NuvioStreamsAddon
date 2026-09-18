@@ -202,8 +202,71 @@ function getStatus(cookies = []) {
     });
 }
 
+const pickCookieByFebboxQuota = async (cookies) => {
+    if (!Array.isArray(cookies) || cookies.length === 0) {
+        return null;
+    }
+
+    const quotaResults = [];
+
+    for (const cookie of cookies) {
+        const quota = await fetchFebboxQuota(cookie);
+
+        if (quota) {
+            const usedBytes = quota.usageBytes;
+
+            quotaResults.push({
+                cookie,
+                usedBytes,
+                remainingBytes: quota.limitBytes - usedBytes
+            });
+
+            console.log(
+                `[CookieQuota] Cookie ${quotaResults.length}: ` +
+                `${(usedBytes / (1024 ** 3)).toFixed(2)} GB used`
+            );
+        }
+    }
+
+    if (quotaResults.length === 0) {
+        console.warn(
+            '[CookieQuota] Could not read FebBox quota for any cookie. Falling back to local picker.'
+        );
+        return pickCookie(cookies);
+    }
+
+    // Prefer the first cookie that has used less than the 10 GB rotation limit.
+    const availableCookie = quotaResults.find(
+        item => item.usedBytes < QUOTA_BYTES
+    );
+
+    if (availableCookie) {
+        console.log(
+            `[CookieQuota] Selected cookie with ` +
+            `${(availableCookie.usedBytes / (1024 ** 3)).toFixed(2)} GB used.`
+        );
+
+        return availableCookie.cookie;
+    }
+
+    // If every cookie reached 10 GB, use the one with the least usage.
+    const leastUsedCookie = quotaResults.reduce(
+        (least, current) =>
+            current.usedBytes < least.usedBytes ? current : least
+    );
+
+    console.log(
+        `[CookieQuota] All cookies reached 10 GB. ` +
+        `Using least-used cookie at ` +
+        `${(leastUsedCookie.usedBytes / (1024 ** 3)).toFixed(2)} GB.`
+    );
+
+    return leastUsedCookie.cookie;
+};
+
 module.exports = {
     pickCookie,
+    pickCookieByFebboxQuota,
     recordUsage,
     markExhausted,
     getStatus,
