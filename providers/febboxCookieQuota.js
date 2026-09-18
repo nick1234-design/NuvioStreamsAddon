@@ -9,6 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const axios = require('axios');
 
 const QUOTA_BYTES = parseInt(process.env.FEBBOX_COOKIE_QUOTA_BYTES, 10) || (10 * 1024 * 1024 * 1024); // 10GB default
 const RESET_HOURS = parseFloat(process.env.FEBBOX_COOKIE_QUOTA_RESET_HOURS) || 24; // febbox quota resets daily
