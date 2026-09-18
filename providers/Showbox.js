@@ -13,7 +13,7 @@ const {
 const Redis = require('ioredis');
 
 const {
-    pickCookie,
+    
     pickCookieByFebboxQuota,
     recordUsage,
     markExhausted
