@@ -13,6 +13,62 @@ const axios = require('axios');
 
 const QUOTA_BYTES = parseInt(process.env.FEBBOX_COOKIE_QUOTA_BYTES, 10) || (10 * 1024 * 1024 * 1024); // 10GB default
 const RESET_HOURS = parseFloat(process.env.FEBBOX_COOKIE_QUOTA_RESET_HOURS) || 24; // febbox quota resets daily
+
+const fetchFebboxQuota = async (cookie) => {
+    if (!cookie) {
+        return null;
+    }
+
+    try {
+        const cookieHeader = cookie.startsWith('ui=')
+            ? cookie
+            : `ui=${cookie}`;
+
+        const response = await axios.get(
+            'https://www.febbox.com/console/user_cards',
+            {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0',
+                    'Accept': 'application/json, text/javascript, */*; q=0.01',
+                    'Cookie': cookieHeader
+                },
+                timeout: 12000,
+                validateStatus: () => true
+            }
+        );
+
+        const flow = response.data?.data?.flow;
+
+        if (!flow) {
+            console.warn(
+                `[CookieQuota] FebBox quota lookup failed with status ${response.status}`
+            );
+            return null;
+        }
+
+        const usageMb = Number(flow.traffic_usage_mb);
+        const limitMb = Number(flow.traffic_limit_mb);
+
+        if (!Number.isFinite(usageMb) || !Number.isFinite(limitMb)) {
+            console.warn('[CookieQuota] FebBox returned invalid quota data.');
+            return null;
+        }
+
+        return {
+            usageBytes: usageMb * 1024 * 1024,
+            limitBytes: limitMb * 1024 * 1024,
+            resetAt: flow.reset_at,
+            isVip: flow.is_vip
+        };
+
+    } catch (error) {
+        console.warn(
+            `[CookieQuota] FebBox quota request failed: ${error.message}`
+        );
+        return null;
+    }
+};
+
 const STORE_PATH = path.join(__dirname, 'febbox_cookie_quota.json');
 
 let state = null; // { [cookieHash]: { usedBytes, windowStart } }
