@@ -15,8 +15,7 @@ const Redis = require('ioredis');
 const {
     
     pickCookieByFebboxQuota,
-    recordUsage,
-    markExhausted
+    
 } = require('./febboxCookieQuota');
 
 // Added for Redis
