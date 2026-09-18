@@ -2390,7 +2390,7 @@ catch (error) {
         console.time(`getStreamsFromTmdbId_fetchStreamSizes_${tmdbType}_${tmdbId}`);
         const sizePromises = allStreams.map(async (stream) => {
             stream.size = await fetchStreamSize(stream.url);
-const sizeBytes = await fetchStreamSizeBytes(stream.url);
+
         });
         const streamsWithSizes = await Promise.all(sizePromises);
         console.timeEnd(`getStreamsFromTmdbId_fetchStreamSizes_${tmdbType}_${tmdbId}`);
