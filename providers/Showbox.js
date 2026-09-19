@@ -198,7 +198,10 @@ if (global.currentRequestConfig && Array.isArray(global.currentRequestConfig.coo
 }
 
 if (configuredCookies.length > 0) {
-    baseCookieToUse = await pickCookieByFebboxQuota(configuredCookies);
+    baseCookieToUse = await pickCookieByFebboxQuota(
+    configuredCookies,
+    regionPreference
+);
 
     console.log(
         `[CookieManager] Selected ShowBox cookie based on FebBox quota: ${configuredCookies.indexOf(baseCookieToUse) + 1} of ${configuredCookies.length}.`
