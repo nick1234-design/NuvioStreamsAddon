@@ -28,12 +28,14 @@ const fetchFebboxQuota = async (cookie) => {
             'https://www.febbox.com/console/user_cards',
             {
                 headers: {
-    'User-Agent': 'Mozilla/5.0',
-    'Accept': 'application/json, text/javascript, */*; q=0.01',
-    'Referer': 'https://www.febbox.com/',
-    'Origin': 'https://www.febbox.com',
-    'Cookie': cookieHeader
-},
+                    'User-Agent': 'Mozilla/5.0',
+                    'Accept': 'application/json, text/javascript, */*; q=0.01',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Referer': 'https://www.febbox.com/',
+                    'Origin': 'https://www.febbox.com',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Cookie': cookieHeader
+                },
                 timeout: 12000,
                 validateStatus: () => true
             }
@@ -42,17 +44,19 @@ const fetchFebboxQuota = async (cookie) => {
         const flow = response.data?.data?.flow;
 
         if (!flow) {
-    console.warn(
-        `[CookieQuota] FebBox quota lookup failed with status ${response.status}`
-    );
-    console.warn(
-        `[CookieQuota] Response for failed cookie:`,
-        typeof response.data === 'string'
-            ? response.data.slice(0, 500)
-            : JSON.stringify(response.data).slice(0, 1000)
-    );
-    return null;
-}
+            console.warn(
+                `[CookieQuota] FebBox quota lookup failed with status ${response.status}`
+            );
+
+            console.warn(
+                '[CookieQuota] Response for failed cookie:',
+                typeof response.data === 'string'
+                    ? response.data.slice(0, 500)
+                    : JSON.stringify(response.data).slice(0, 1000)
+            );
+
+            return null;
+        }
 
         const usageMb = Number(flow.traffic_usage_mb);
         const limitMb = Number(flow.traffic_limit_mb);
@@ -73,6 +77,7 @@ const fetchFebboxQuota = async (cookie) => {
         console.warn(
             `[CookieQuota] FebBox quota request failed: ${error.message}`
         );
+
         return null;
     }
 };
