@@ -14,7 +14,7 @@ const axios = require('axios');
 const QUOTA_BYTES = parseInt(process.env.FEBBOX_COOKIE_QUOTA_BYTES, 10) || (10 * 1024 * 1024 * 1024); // 10GB default
 const RESET_HOURS = parseFloat(process.env.FEBBOX_COOKIE_QUOTA_RESET_HOURS) || 24; // febbox quota resets daily
 
-const fetchFebboxQuota = async (cookie, regionPreference = null) => {
+const fetchFebboxQuota = async (cookie, regionPreference = null, cookieIndex = null) => {
     if (!cookie) {
         return null;
     }
@@ -53,7 +53,7 @@ const finalCookieHeader = regionPreference
             );
 
             console.warn(
-                '[CookieQuota] Response for failed cookie:',
+    `[CookieQuota] Response for failed cookie ${cookieIndex}:`,
                 typeof response.data === 'string'
                     ? response.data.slice(0, 500)
                     : JSON.stringify(response.data).slice(0, 1000)
@@ -233,7 +233,11 @@ const pickCookieByFebboxQuota = async (cookies, regionPreference = null) => {
         `[CookieQuota] Checking cookie ${i + 1} of ${cookies.length}`
     );
 
-    const quota = await fetchFebboxQuota(cookie, regionPreference);
+    const quota = await fetchFebboxQuota(
+    cookie,
+    regionPreference,
+    i + 1
+);
 
         if (quota) {
             const usedBytes = quota.usageBytes;
