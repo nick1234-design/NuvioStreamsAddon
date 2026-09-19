@@ -193,6 +193,7 @@ if (global.currentRequestConfig && Array.isArray(global.currentRequestConfig.coo
     for (const c of global.currentRequestConfig.cookies) {
         if (c && c.trim() && !configuredCookies.includes(c.trim())) {
             configuredCookies.push(c.trim());
+console.log(`[CookieManager] Cookie ${configuredCookies.length}: length=${c.trim().length}, startsWithUi=${c.trim().startsWith('ui=')}`);
         }
     }
 }
