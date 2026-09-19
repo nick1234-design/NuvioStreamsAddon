@@ -24,9 +24,15 @@ const fetchFebboxQuota = async (cookie, regionPreference = null, cookieIndex = n
     ? cookie
     : `ui=${cookie}`;
 
-const finalCookieHeader = regionPreference
-    ? `${cookieHeader}; oss_group=${regionPreference}`
-    : cookieHeader;
+const phpSessionId = process.env.FEBBOX_PHPSESSID;
+
+const finalCookieHeader = [
+    cookieHeader,
+    phpSessionId ? `PHPSESSID=${phpSessionId}` : null,
+    regionPreference ? `oss_group=${regionPreference}` : null
+]
+    .filter(Boolean)
+    .join('; ');
 
         const response = await axios.get(
             'https://www.febbox.com/console/user_cards',
