@@ -14,15 +14,19 @@ const axios = require('axios');
 const QUOTA_BYTES = parseInt(process.env.FEBBOX_COOKIE_QUOTA_BYTES, 10) || (10 * 1024 * 1024 * 1024); // 10GB default
 const RESET_HOURS = parseFloat(process.env.FEBBOX_COOKIE_QUOTA_RESET_HOURS) || 24; // febbox quota resets daily
 
-const fetchFebboxQuota = async (cookie) => {
+const fetchFebboxQuota = async (cookie, regionPreference = null) => {
     if (!cookie) {
         return null;
     }
 
     try {
         const cookieHeader = cookie.startsWith('ui=')
-            ? cookie
-            : `ui=${cookie}`;
+    ? cookie
+    : `ui=${cookie}`;
+
+const finalCookieHeader = regionPreference
+    ? `${cookieHeader}; oss_group=${regionPreference}`
+    : cookieHeader;
 
         const response = await axios.get(
             'https://www.febbox.com/console/user_cards',
@@ -34,7 +38,7 @@ const fetchFebboxQuota = async (cookie) => {
                     'Referer': 'https://www.febbox.com/',
                     'Origin': 'https://www.febbox.com',
                     'X-Requested-With': 'XMLHttpRequest',
-                    'Cookie': cookieHeader
+                    'Cookie': finalCookieHeader
                 },
                 timeout: 12000,
                 validateStatus: () => true
@@ -215,7 +219,7 @@ function getStatus(cookies = []) {
     });
 }
 
-const pickCookieByFebboxQuota = async (cookies) => {
+const pickCookieByFebboxQuota = async (cookies, regionPreference = null) => {
     if (!Array.isArray(cookies) || cookies.length === 0) {
         return null;
     }
@@ -223,7 +227,7 @@ const pickCookieByFebboxQuota = async (cookies) => {
     const quotaResults = [];
 
     for (const cookie of cookies) {
-        const quota = await fetchFebboxQuota(cookie);
+        const quota = await fetchFebboxQuota(cookie, regionPreference);
 
         if (quota) {
             const usedBytes = quota.usageBytes;
