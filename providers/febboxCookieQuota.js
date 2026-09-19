@@ -28,10 +28,12 @@ const fetchFebboxQuota = async (cookie) => {
             'https://www.febbox.com/console/user_cards',
             {
                 headers: {
-                    'User-Agent': 'Mozilla/5.0',
-                    'Accept': 'application/json, text/javascript, */*; q=0.01',
-                    'Cookie': cookieHeader
-                },
+    'User-Agent': 'Mozilla/5.0',
+    'Accept': 'application/json, text/javascript, */*; q=0.01',
+    'Referer': 'https://www.febbox.com/',
+    'Origin': 'https://www.febbox.com',
+    'Cookie': cookieHeader
+},
                 timeout: 12000,
                 validateStatus: () => true
             }
