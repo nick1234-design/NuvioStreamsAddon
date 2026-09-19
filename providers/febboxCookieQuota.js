@@ -226,8 +226,14 @@ const pickCookieByFebboxQuota = async (cookies, regionPreference = null) => {
 
     const quotaResults = [];
 
-    for (const cookie of cookies) {
-        const quota = await fetchFebboxQuota(cookie, regionPreference);
+    for (let i = 0; i < cookies.length; i++) {
+    const cookie = cookies[i];
+
+    console.log(
+        `[CookieQuota] Checking cookie ${i + 1} of ${cookies.length}`
+    );
+
+    const quota = await fetchFebboxQuota(cookie, regionPreference);
 
         if (quota) {
             const usedBytes = quota.usageBytes;
