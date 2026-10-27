@@ -31,7 +31,7 @@ if (UHDMOVIES_PROXY_URL) {
 }
 
 // --- Domain Fetching ---
-let uhdMoviesDomain = 'https://uhdmovies.email'; // Fallback domain
+let uhdMoviesDomain = 'https://uhdmovies.beauty'; // Fallback domain
 let domainCacheTimestamp = 0;
 const DOMAIN_CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
 
