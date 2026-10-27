@@ -629,7 +629,12 @@ async function search(query) {
         const poster = element.prev('figure').find('img').attr('src') || element.parent().find('figure img').attr('src');
 
         if (title && url && url.length > 10) {
-            results.push({ title, url, poster });
+            try {
+                const absoluteUrl = new URL(url, MAIN_URL).toString();
+                results.push({ title, url: absoluteUrl, poster });
+            } catch (error) {
+                console.error('[HDHub4u] Invalid search result URL:', url, error.message);
+            }
         }
     });
 
