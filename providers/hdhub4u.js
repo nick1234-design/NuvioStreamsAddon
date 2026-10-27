@@ -1,13 +1,13 @@
 /**
  * HDHub4u Provider for Stremio Addon
- * Based on the standalone scraper from scrapersdirect/hdhub4u-scraper.js
+clea * Based on the standalone scraper from scrapersdirect/hdhub4u-scraper.js
  * Supports both movies and TV series
  */
 
 const axios = require('axios');
 const cheerio = require('cheerio');
 const https = require('https');
-const { compareTwoStrings } = require('string-similarity');
+const { findBestMatch } = require('string-similarity');
 const fs = require('fs').promises;
 const path = require('path');
 const RedisCache = require('../utils/redisCache');
@@ -83,39 +83,23 @@ if (HDHUB4U_PROXY_URL) {
     log('[HDHub4u] No proxy configured, using direct connections');
 }
 
-// The domain list used to be re-fetched 3+ times per stream request (stream fetch, search,
-// download-links). It rarely changes, so refresh at most once per TTL and share in-flight calls.
-const DOMAIN_REFRESH_TTL = 30 * 60 * 1000; // 30 minutes
-let lastDomainCheck = 0;
-let domainRefreshPromise = null;
-
 /**
- * Fetches the latest domain for HDHub4u (rate-limited, see DOMAIN_REFRESH_TTL).
+ * Fetches the latest domain for HDHub4u.
  */
 async function fetchAndUpdateDomain() {
-    if (Date.now() - lastDomainCheck < DOMAIN_REFRESH_TTL) return;
-    if (domainRefreshPromise) return domainRefreshPromise;
-
-    domainRefreshPromise = (async () => {
-        try {
-            const response = await makeRequest(DOMAINS_URL, { httpsAgent: agent, timeout: 8000 });
-            if (response.data && response.data.HDHUB4u) {
-                const newDomain = response.data.HDHUB4u;
-                if (newDomain !== MAIN_URL) {
-                    log(`[HDHub4u] Updating domain from ${MAIN_URL} to ${newDomain}`);
-                    MAIN_URL = newDomain;
-                    HEADERS.Referer = `${MAIN_URL}/`;
-                }
+    try {
+        const response = await makeRequest(DOMAINS_URL, { httpsAgent: agent });
+        if (response.data && response.data.HDHUB4u) {
+            const newDomain = response.data.HDHUB4u;
+            if (newDomain !== MAIN_URL) {
+                log(`[HDHub4u] Updating domain from ${MAIN_URL} to ${newDomain}`);
+                MAIN_URL = newDomain;
+                HEADERS.Referer = `${MAIN_URL}/`;
             }
-        } catch (e) {
-            console.error("[HDHub4u] Failed to fetch latest domains, using default.", e.message);
-        } finally {
-            // Also set on failure so a down domains list doesn't add a failing request to every call.
-            lastDomainCheck = Date.now();
-            domainRefreshPromise = null;
         }
-    })();
-    return domainRefreshPromise;
+    } catch (e) {
+        console.error("[HDHub4u] Failed to fetch latest domains, using default.", e.message);
+    }
 }
 
 const HEADERS = {
@@ -125,10 +109,7 @@ const HEADERS = {
 };
 
 // --- Proxy Wrapper Function ---
-const REQUEST_TIMEOUT = 15000;
 const makeRequest = async (url, options = {}) => {
-    // Without a timeout a single stalled host blocks the whole stream request.
-    options = { timeout: REQUEST_TIMEOUT, ...options };
     if (HDHUB4U_PROXY_URL) {
         const proxiedUrl = `${HDHUB4U_PROXY_URL}?url=${encodeURIComponent(url)}`;
         log(`[HDHub4u] Using proxy for: ${url}`);
@@ -206,29 +187,10 @@ function cleanTitle(title) {
     }
 }
 
-// Redirector results are memoized briefly so the same techyboy4u-style link is not
-// fetched repeatedly within one request (or by concurrent requests). Failures are not kept.
-const REDIRECT_MEMO_TTL = 10 * 60 * 1000;
-const redirectMemo = new Map(); // url -> { promise, ts }
-
-function getRedirectLinks(url) {
-    const hit = redirectMemo.get(url);
-    if (hit && Date.now() - hit.ts < REDIRECT_MEMO_TTL) {
-        return hit.promise;
-    }
-    const promise = resolveRedirectLink(url).then(result => {
-        // null / unchanged URL means resolution failed; don't remember that.
-        if (!result || result === url) redirectMemo.delete(url);
-        return result;
-    });
-    redirectMemo.set(url, { promise, ts: Date.now() });
-    return promise;
-}
-
 /**
  * Resolves obfuscated redirector links.
  */
-async function resolveRedirectLink(url) {
+async function getRedirectLinks(url) {
     try {
         log(`[HDHub4u] Processing redirect link: ${url}`);
         const response = await makeRequest(url, { headers: HEADERS, httpsAgent: agent });
@@ -329,45 +291,10 @@ async function resolveRedirectLink(url) {
 // =================================================================================
 
 /**
- * Resolves an href against a base URL. Returns an absolute http(s) URL string, or null when the
- * href is empty, unparsable, or not http(s) (magnet:, javascript:, mailto: ...).
- */
-function toAbsoluteHttpUrl(href, base) {
-    if (!href || typeof href !== 'string') return null;
-    try {
-        const u = new URL(href.trim(), base);
-        return (u.protocol === 'http:' || u.protocol === 'https:') ? u.toString() : null;
-    } catch (e) {
-        return null;
-    }
-}
-
-/**
  * Main extractor dispatcher.
  */
 async function loadExtractor(url, referer = MAIN_URL) {
-    // Hrefs scraped from pages may be relative or protocol-relative. Resolve against the page they
-    // came from (the referer) when that is absolute, else the site root; skip anything unusable
-    // instead of letting `new URL()` throw and abort the whole extraction. Already-absolute URLs are
-    // passed through untouched.
-    const base = /^https?:\/\//i.test(referer || '') ? referer : MAIN_URL;
-    const resolvedInput = toAbsoluteHttpUrl(url, base);
-    if (!resolvedInput) {
-        log(`[HDHub4u] Skipping unusable link: ${url}`);
-        return [];
-    }
-    if (!/^[a-z][a-z0-9+.-]*:/i.test(String(url).trim())) {
-        url = resolvedInput;
-    }
     const hostname = new URL(url).hostname;
-
-    // HubCloud URLs (e.g. https://hubcloud.ist/tg/go?id=...) also contain "?id=" but are NOT
-    // techyboy4u-style obfuscated redirectors. They must go to hubCloudExtractor before the
-    // generic redirect check below, otherwise getRedirectLinks() finds no encoded strings,
-    // returns the input URL and the link is skipped.
-    if (hostname.includes('hubcloud')) {
-        return hubCloudExtractor(url, referer);
-    }
 
     // Some links from the main site are redirectors that need to be resolved first.
     if (url.includes("?id=") || hostname.includes('techyboy4u')) {
@@ -387,6 +314,9 @@ async function loadExtractor(url, referer = MAIN_URL) {
         return loadExtractor(finalLink, url);
     }
 
+    if (hostname.includes('hubcloud')) {
+        return hubCloudExtractor(url, referer);
+    }
     if (hostname.includes('hubdrive')) {
         return hubDriveExtractor(url, referer);
     }
@@ -553,73 +483,21 @@ async function hubDriveExtractor(url, referer) {
     return [];
 }
 
-/**
- * Converts a PixelDrain page link (/u/<id>, /file/<id>) to the direct API download URL.
- * Only rewrites when a file id is literally present in the URL; no network call, nothing invented.
- */
-function toPixeldrainDownloadUrl(link) {
-    try {
-        const u = new URL(link);
-        if (!u.hostname.includes('pixeldra')) return link;
-        if (u.pathname.startsWith('/api/file/')) return link;
-        const m = u.pathname.match(/^\/(?:u|file)\/([A-Za-z0-9_-]+)/);
-        if (!m) return link; // e.g. /l/<list> - not a single file, leave untouched
-        return `${u.origin}/api/file/${m[1]}?download`;
-    } catch (e) {
-        return link;
-    }
-}
-
-/**
- * Finds PixelDrain file URLs that appear as string literals inside inline <script> blocks
- * (e.g. var x = "https://pixeldrain.dev/u/<id>"). Only URLs literally present in the page are
- * returned; nothing is constructed from guesses.
- */
-function findPixeldrainUrlsInScripts(html) {
-    const found = [];
-    if (typeof html !== 'string') return found;
-    const scriptRe = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
-    const urlRe = /https?:\/\/(?:[a-z0-9-]+\.)*pixeldrain\.[a-z]+\/(?:api\/file|u|file)\/[A-Za-z0-9_-]+/gi;
-    let s;
-    while ((s = scriptRe.exec(html)) !== null) {
-        const code = s[1].replace(/\\\//g, '/'); // un-escape JSON-style "https:\/\/..."
-        let m;
-        while ((m = urlRe.exec(code)) !== null) {
-            if (!found.includes(m[0])) found.push(m[0]);
-        }
-    }
-    return found;
-}
-
-function pixeldrainFileId(link) {
-    const m = (link || '').match(/\/(?:api\/file|u|file)\/([A-Za-z0-9_-]+)/);
-    return m ? m[1] : null;
-}
-
 async function hubCloudExtractor(url, referer) {
     let currentUrl = url;
     if (currentUrl.includes("hubcloud.ink")) {
         currentUrl = currentUrl.replace("hubcloud.ink", "hubcloud.dad");
     }
 
-    let pageResponse;
+    let pageResponse = await makeRequest(currentUrl, { headers: { ...HEADERS, Referer: referer }, httpsAgent: agent });
     let finalUrl = currentUrl;
-    try {
-        pageResponse = await makeRequest(currentUrl, { headers: { ...HEADERS, Referer: referer }, httpsAgent: agent });
 
-        // Two-step pages: the first page only holds `var url = '<real page>'` in a script.
-        // Follow it once (no loops). Pages that already contain the download buttons are used as-is.
-        if (!currentUrl.includes("hubcloud.php") && typeof pageResponse.data === 'string') {
-            const scriptUrlMatch = pageResponse.data.match(/var\s+url\s*=\s*(['"])([^'"]+)\1/);
-            if (scriptUrlMatch && scriptUrlMatch[2]) {
-                finalUrl = new URL(scriptUrlMatch[2], currentUrl).toString();
-                pageResponse = await makeRequest(finalUrl, { headers: { ...HEADERS, Referer: currentUrl }, httpsAgent: agent });
-            }
+    if (!currentUrl.includes("hubcloud.php")) {
+        const scriptUrlMatch = pageResponse.data.match(/var url = '([^']*)'/);
+        if (scriptUrlMatch && scriptUrlMatch[1]) {
+            finalUrl = scriptUrlMatch[1];
+            pageResponse = await makeRequest(finalUrl, { headers: { ...HEADERS, Referer: currentUrl }, httpsAgent: agent });
         }
-    } catch (e) {
-        const status = e.response ? ` (HTTP ${e.response.status})` : '';
-        console.error(`[HDHub4u] HubCloud page request failed for ${(e.config && e.config.url) || finalUrl}${status}: ${e.message}`);
-        return [];
     }
 
     const $ = cheerio.load(pageResponse.data);
@@ -658,56 +536,40 @@ async function hubCloudExtractor(url, referer) {
     const links = [];
     const elements = $('div.card-body h2 a.btn').get();
 
-    // FSL links can reject requests without a Referer/User-Agent, so carry the headers used to
-    // reach them. Consumers that ignore `headers` behave exactly as before.
-    const fslHeaders = { 'User-Agent': HEADERS['User-Agent'], Referer: finalUrl };
-
     for (const element of elements) {
-        const rawLink = $(element).attr('href');
+        const link = $(element).attr('href');
         const text = $(element).text();
-        if (!rawLink) continue;
 
-        // Normalize to an absolute URL right away (relative hrefs resolve against the page they came from).
-        // Everything below - host checks, extractors, returned stream URLs - uses this value.
-        let link;
-        try {
-            link = new URL(rawLink, finalUrl).toString();
-        } catch (error) {
-            continue;
-        }
-        const linkHost = new URL(link).hostname;
-
-        if (linkHost.includes("pixeldra")) {
-            links.push({ source: `Pixeldrain ${labelExtras}`, quality, url: toPixeldrainDownloadUrl(link), size: sizeInBytes });
-        } else if (text.includes("Download File")) {
+        if (text.includes("Download File")) {
             links.push({ source: `HubCloud ${labelExtras}`, quality, url: link, size: sizeInBytes });
         } else if (text.includes("FSL Server")) {
-            links.push({ source: `HubCloud - FSL Server ${labelExtras}`, quality, url: link, size: sizeInBytes, headers: fslHeaders });
+            links.push({ source: `HubCloud - FSL Server ${labelExtras}`, quality, url: link, size: sizeInBytes });
         } else if (text.includes("S3 Server")) {
             links.push({ source: `HubCloud - S3 Server ${labelExtras}`, quality, url: link, size: sizeInBytes });
         } else if (text.includes("BuzzServer")) {
             try {
-                const buzzResp = await makeRequest(`${link.replace(/\/+$/, '')}/download`, {
+                const buzzResp = await makeRequest(`${link}/download`, {
                     headers: { ...HEADERS, Referer: link },
                     maxRedirects: 0,
                     validateStatus: status => status >= 200 && status < 400,
                     httpsAgent: agent,
                 });
                 const dlink = buzzResp.headers['hx-redirect'];
-                const buzzUrl = toAbsoluteHttpUrl(dlink, link);
-                if (buzzUrl) {
-                    links.push({ source: `HubCloud - BuzzServer ${labelExtras}`, quality, url: buzzUrl, size: sizeInBytes });
+                if (dlink) {
+                    const baseUrl = new URL(link).origin;
+                    links.push({ source: `HubCloud - BuzzServer ${labelExtras}`, quality, url: baseUrl + dlink, size: sizeInBytes });
                 }
             } catch (e) {
                 if (e.response && e.response.headers['hx-redirect']) {
-                    const buzzUrl = toAbsoluteHttpUrl(e.response.headers['hx-redirect'], link);
-                    if (buzzUrl) {
-                        links.push({ source: `HubCloud - BuzzServer ${labelExtras}`, quality, url: buzzUrl, size: sizeInBytes });
-                    }
+                    const dlink = e.response.headers['hx-redirect'];
+                    const baseUrl = new URL(link).origin;
+                    links.push({ source: `HubCloud - BuzzServer ${labelExtras}`, quality, url: baseUrl + dlink, size: sizeInBytes });
                 } else {
                     console.error("[HDHub4u] BuzzServer redirect not found for", link);
                 }
             }
+        } else if (link.includes("pixeldra")) {
+            links.push({ source: `Pixeldrain ${labelExtras}`, quality, url: link, size: sizeInBytes });
         } else if (text.includes("10Gbps")) {
             let currentRedirectUrl = link;
             let finalLink = null;
@@ -720,9 +582,7 @@ async function hubCloudExtractor(url, referer) {
                             finalLink = location.substring(location.indexOf("link=") + 5);
                             break;
                         }
-                        const nextUrl = toAbsoluteHttpUrl(location, currentRedirectUrl);
-                        if (!nextUrl) break;
-                        currentRedirectUrl = nextUrl;
+                        currentRedirectUrl = new URL(location, currentRedirectUrl).toString();
                     } else {
                         break;
                     }
@@ -733,9 +593,7 @@ async function hubCloudExtractor(url, referer) {
                             finalLink = location.substring(location.indexOf("link=") + 5);
                             break;
                         }
-                        const nextUrl = toAbsoluteHttpUrl(location, currentRedirectUrl);
-                        if (!nextUrl) break;
-                        currentRedirectUrl = nextUrl;
+                        currentRedirectUrl = new URL(location, currentRedirectUrl).toString();
                     } else {
                         console.error("[HDHub4u] 10Gbps redirect failed for", currentRedirectUrl);
                         break;
@@ -749,22 +607,6 @@ async function hubCloudExtractor(url, referer) {
             const extracted = await loadExtractor(link, finalUrl);
             links.push(...extracted);
         }
-    }
-
-    // PixelDrain URLs assigned in inline JavaScript rather than present as buttons.
-    // Only URLs literally present in the page are added, and only if not already found above.
-    const knownPixeldrainIds = new Set(
-        links.filter(l => l.url && l.url.includes('pixeldra')).map(l => pixeldrainFileId(l.url)).filter(Boolean)
-    );
-    for (const scriptUrl of findPixeldrainUrlsInScripts(pageResponse.data)) {
-        const id = pixeldrainFileId(scriptUrl);
-        if (!id || knownPixeldrainIds.has(id)) continue;
-        knownPixeldrainIds.add(id);
-        links.push({ source: `Pixeldrain ${labelExtras}`, quality, url: toPixeldrainDownloadUrl(scriptUrl), size: sizeInBytes });
-    }
-
-    if (links.length === 0) {
-        log(`[HDHub4u] HubCloud page ${finalUrl} had no recognised download buttons or PixelDrain URLs`);
     }
     return links;
 }
@@ -955,12 +797,9 @@ async function getDownloadLinks(mediaUrl) {
 
                 if (isDirectLinkBlock) {
                     const redirectLinks = $el.find('a').map((i, a) => $(a).attr('href')).get();
-                    for (const rawRedirectLink of redirectLinks) {
-                        const redirectLink = toAbsoluteHttpUrl(rawRedirectLink, mediaUrl);
-                        if (!redirectLink) continue;
+                    for (const redirectLink of redirectLinks) {
                         try {
                             const resolvedUrl = await getRedirectLinks(redirectLink);
-                            if (!resolvedUrl || resolvedUrl === redirectLink) continue; // unresolved: don't re-fetch the same URL
                             const episodeDocPage = await makeRequest(resolvedUrl, { headers: HEADERS, httpsAgent: agent });
                             const $$ = cheerio.load(episodeDocPage.data);
                             $$('h5 a').each((i, linkEl) => {
@@ -1000,12 +839,6 @@ async function getDownloadLinks(mediaUrl) {
         });
     }
 
-    // Resolve scraped hrefs against the media page and drop unusable ones (relative, protocol-relative,
-    // magnet:, javascript: ...) so no later request or `new URL()` call receives a bare relative path.
-    initialLinks = initialLinks
-        .map(l => ({ ...l, url: toAbsoluteHttpUrl(l.url, mediaUrl) }))
-        .filter(l => l.url);
-
     log(`[HDHub4u] Found ${initialLinks.length} initial hoster links. Now extracting...`);
 
     const allFinalLinks = [];
@@ -1013,7 +846,6 @@ async function getDownloadLinks(mediaUrl) {
         try {
             if (linkInfo.isQualityRedirect) {
                 const resolvedUrl = await getRedirectLinks(linkInfo.url);
-                if (!resolvedUrl || resolvedUrl === linkInfo.url) return []; // unresolved: don't re-fetch the same URL
                 const episodeDocPage = await makeRequest(resolvedUrl, { headers: HEADERS, httpsAgent: agent });
                 const $$ = cheerio.load(episodeDocPage.data);
 
@@ -1096,123 +928,6 @@ function formatBytes(bytes, decimals = 2) {
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
-// --- Title matching helpers ---
-
-function normalizeForMatch(s) {
-    return (s || '')
-        .toLowerCase()
-        .replace(/&/g, ' and ')
-        .replace(/[^a-z0-9]+/g, ' ')
-        .replace(/^(?:the|a|an)\s+/, '')
-        .trim();
-}
-
-/**
- * HDHub4u titles look like "Name (2024) Hindi WEB-DL 480p ...". Returns just the name part:
- * the text before the first "(", "[", year, season/quality/language tag. A match at index 0
- * is ignored so titles that start with a year (e.g. "1917", "2012") still work.
- */
-function extractNamePart(resultTitle) {
-    const s = (resultTitle || '').replace(/^\s*download\s+/i, '');
-    const cut = /[(\[]|\b(?:19|20)\d{2}\b|\bseason\b|\bs\d{1,2}\b|\bcomplete\b|\b(?:480|720|1080|2160)p\b|\b(?:web-?dl|webrip|hdrip|bluray|hdtv|hindi|dual|multi)\b/gi;
-    let m;
-    while ((m = cut.exec(s)) !== null) {
-        if (m.index > 0) return s.slice(0, m.index);
-        if (m[0].length === 0) cut.lastIndex++;
-    }
-    return s;
-}
-
-/**
- * Decides whether a search result is reliably the requested title.
- * - name must equal the wanted title, or be very similar (>= 0.85)
- * - movies with a known year: any year in the result title must be within +/-1 of it;
- *   a result with no year at all is accepted only on an exact name match
- */
-function scoreTitleMatch(resultTitle, wantedTitle, wantedYear, mediaType) {
-    const name = normalizeForMatch(extractNamePart(resultTitle));
-    const want = normalizeForMatch(wantedTitle);
-    if (!name || !want) return { ok: false, score: 0 };
-
-    const exact = name === want;
-    const similarity = exact ? 1 : compareTwoStrings(name, want);
-    if (similarity < 0.85) return { ok: false, score: similarity };
-
-    let yearBonus = 0;
-    if (mediaType === 'movie' && wantedYear) {
-        const years = ((resultTitle || '').match(/\b(?:19|20)\d{2}\b/g) || []).map(Number);
-        if (years.length > 0) {
-            if (!years.some(y => Math.abs(y - wantedYear) <= 1)) return { ok: false, score: similarity };
-            yearBonus = 0.2;
-        } else if (!exact) {
-            return { ok: false, score: similarity };
-        }
-    }
-    return { ok: true, score: similarity + yearBonus };
-}
-
-// --- Stream validation helpers ---
-
-const HEAD_TIMEOUT_MS = 3000;       // per-request timeout
-const VALIDATION_BUDGET_MS = 3500;  // hard cap per probe; the request is aborted after this
-
-/**
- * Lightweight HEAD probe. Never throws. Returns { state, status?, headers?, reason? } where state is:
- *  - 'ok'           the host answered 2xx
- *  - 'broken'       clearly dead: 404/410, unresolvable host, or not a usable http(s) URL
- *  - 'inconclusive' anything else (403/405/429/5xx, timeouts, resets...). This does NOT mean the link is
- *                   bad - many hosts reject HEAD but serve GET/range requests fine.
- * Uses the link's own required headers (e.g. FSL Referer) so the probe isn't a false negative.
- */
-async function probeStream(stream) {
-    let parsed;
-    try {
-        parsed = new URL(stream.url);
-    } catch (e) {
-        return { state: 'broken', reason: 'invalid URL' };
-    }
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        return { state: 'broken', reason: `unsupported protocol ${parsed.protocol}` };
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), VALIDATION_BUDGET_MS);
-    try {
-        const response = await axios.head(stream.url, {
-            timeout: HEAD_TIMEOUT_MS,
-            maxRedirects: 3,
-            httpsAgent: agent,
-            signal: controller.signal,
-            validateStatus: () => true, // inspect the status ourselves instead of throwing
-            headers: {
-                'User-Agent': HEADERS['User-Agent'],
-                ...(stream.headers || {})
-            }
-        });
-        const status = response.status;
-        if (status >= 200 && status < 300) return { state: 'ok', status, headers: response.headers || {} };
-        if (status === 404 || status === 410) return { state: 'broken', status, reason: 'not found' };
-        return { state: 'inconclusive', status };
-    } catch (error) {
-        if (error && error.code === 'ENOTFOUND') return { state: 'broken', reason: 'host not found' };
-        return { state: 'inconclusive', reason: (error && error.message) || 'request failed' };
-    } finally {
-        clearTimeout(timer);
-    }
-}
-
-/**
- * Picks the stream to keep from probe results aligned with the group's (already preference-sorted)
- * streams: the first verified ('ok') one, else the first inconclusive one, else none.
- */
-function chooseStream(probes) {
-    const verified = probes.findIndex(p => p.state === 'ok');
-    if (verified !== -1) return { index: verified, verified: true };
-    const unverified = probes.findIndex(p => p.state === 'inconclusive');
-    if (unverified !== -1) return { index: unverified, verified: false };
-    return null;
-}
-
 /**
  * Main function to get streams for TMDB content
  */
@@ -1273,35 +988,37 @@ async function getHDHub4uStreams(tmdbId, mediaType, title, year = null, seasonNu
             log(`[HDHub4u] Search result ${index + 1}: ${result.title} - ${result.url}`);
         });
 
-        // Find best match. A result is only eligible if its title (and, for movies, year)
-        // reliably matches what was requested. There is no "fall back to the first result":
-        // playing the wrong video is worse than returning no HDHub4u streams.
-        const parsedYear = year ? parseInt(year, 10) : null;
-        const eligible = searchResults
-            .map((r, index) => ({ r, index, ...scoreTitleMatch(r.title, title, parsedYear, mediaType) }))
-            .filter(x => x.ok);
-
-        if (eligible.length === 0) {
-            log(`[HDHub4u] No reliable title/year match among ${searchResults.length} results for "${title}" (${year || 'no year'}); not guessing`);
-            await saveToCache(cacheKey, []);
-            return [];
-        }
-
+        // Find best match - for TV shows, prioritize season match
         let bestMatch = null;
         if (mediaType === 'tv' && seasonNum) {
-            // Prefer a result that names the requested season
-            const seasonPattern = new RegExp(`season\\s*${seasonNum}\\b|\\bs0?${seasonNum}\\b`, 'i');
-            const seasonMatches = eligible.filter(x => seasonPattern.test(x.r.title));
+            // Look for exact season match in title first
+            const seasonPattern = new RegExp(`season\\s*${seasonNum}|s${seasonNum}\\b|\\(season\\s*${seasonNum}\\)`, 'i');
+            const seasonMatches = searchResults.filter(r => seasonPattern.test(r.title));
+
             if (seasonMatches.length > 0) {
-                log(`[HDHub4u] Found ${seasonMatches.length} title-matching results for Season ${seasonNum}`);
-                bestMatch = seasonMatches[0].r;
+                log(`[HDHub4u] Found ${seasonMatches.length} results matching Season ${seasonNum}`);
+                bestMatch = seasonMatches[0];
             } else {
-                log(`[HDHub4u] No season-specific result; using best title match`);
+                // No exact season match, use title similarity
+                log(`[HDHub4u] No exact season match found, using title similarity`);
+                const titles = searchResults.map(r => r.title);
+                const match = findBestMatch(title.toLowerCase(), titles.map(t => t.toLowerCase()));
+                if (match.bestMatch.rating > 0.3) {
+                    bestMatch = searchResults[match.bestMatchIndex];
+                } else {
+                    bestMatch = searchResults[0];
+                }
             }
-        }
-        if (!bestMatch) {
-            // Highest score wins; ties keep the site's own result order
-            bestMatch = eligible.reduce((best, x) => (x.score > best.score ? x : best), eligible[0]).r;
+        } else if (searchResults.length === 1) {
+            bestMatch = searchResults[0];
+        } else {
+            const titles = searchResults.map(r => r.title);
+            const match = findBestMatch(searchQuery.toLowerCase(), titles.map(t => t.toLowerCase()));
+            if (match.bestMatch.rating > 0.3) {
+                bestMatch = searchResults[match.bestMatchIndex];
+            } else {
+                bestMatch = searchResults[0]; // Fallback to first result
+            }
         }
 
         log(`[HDHub4u] ===== SELECTED MEDIA =====`);
@@ -1357,9 +1074,7 @@ async function getHDHub4uStreams(tmdbId, mediaType, title, year = null, seasonNu
                     source: link.source,
                     size: sizeText,
                     episode: link.episode || null,
-                    originalTitle: title, // Store original title for fallback
-                    // Request headers a link needs (currently FSL only); absent for all other links
-                    ...(link.headers ? { headers: link.headers } : {})
+                    originalTitle: title // Store original title for fallback
                 };
             });
 
@@ -1465,56 +1180,80 @@ async function getHDHub4uStreams(tmdbId, mediaType, title, year = null, seasonNu
             return cleanedTitle ? `${cleanedTitle} - ${filename}` : filename;
         };
 
-        // Validate links in parallel for each group.
-        // A HEAD probe is only a hint: many hosts answer HEAD with 403/405/501 (or time out) for links that
-        // play fine. Only a clearly dead link (404/410, unresolvable host, not a usable http(s) URL) is
-        // dropped; inconclusive links stay as candidates but rank below links that were verified.
+        // Validate links in parallel for each group
         const validationPromises = Array.from(streamGroups.entries()).map(async ([groupKey, groupStreams]) => {
             log(`[HDHub4u] Validating ${groupStreams.length} links for ${groupKey}...`);
 
-            // All probes in the group run concurrently and are individually time-bounded (see probeStream)
-            const probes = await Promise.all(groupStreams.map(stream => probeStream(stream)));
-            probes.forEach((probe, index) => {
-                log(`[HDHub4u] Link ${index + 1} for ${groupKey}: ${probe.state}${probe.status ? ` (HTTP ${probe.status})` : ''}${probe.reason ? ` - ${probe.reason}` : ''}`);
+            // Create validation promises for all streams in this group
+            const streamValidations = groupStreams.map(async (stream, index) => {
+                try {
+                    const response = await axios.head(stream.url, {
+                        timeout: 5000,
+                        httpsAgent: agent,
+                        headers: {
+                            'User-Agent': HEADERS['User-Agent']
+                        }
+                    });
+
+                    if (response.status === 200) {
+                        // Extract actual filename from headers or URL
+                        const actualFilename = extractFilename(response.headers, stream.url);
+
+                        log(`[HDHub4u] ✓ Link ${index + 1} validated for ${groupKey}${actualFilename ? ` - Filename: ${actualFilename}` : ''}`);
+
+                        return {
+                            ...stream,
+                            actualFilename,
+                            validationSuccess: true,
+                            priority: index // Lower index = higher priority
+                        };
+                    }
+                } catch (error) {
+                    log(`[HDHub4u] ✗ Link ${index + 1} failed for ${groupKey}: ${error.message}`);
+                }
+                return null;
             });
 
-            const choice = chooseStream(probes);
-            if (!choice) {
-                log(`[HDHub4u] All ${groupStreams.length} links for ${groupKey} look dead; dropping the group`);
-                return null;
-            }
+            // Wait for all validations in this group to complete
+            const results = await Promise.all(streamValidations);
+            const validStreams = results.filter(result => result !== null);
 
-            const selectedStream = { ...groupStreams[choice.index] };
-            if (choice.verified) {
-                // Extract actual filename from the response headers or URL
-                const actualFilename = extractFilename(probes[choice.index].headers || {}, selectedStream.url);
-                selectedStream.actualFilename = actualFilename;
-                selectedStream.validationSuccess = true;
-                selectedStream.priority = choice.index; // Lower index = higher priority
-                if (actualFilename) {
+            if (validStreams.length > 0) {
+                // Return the highest priority valid stream
+                const selectedStream = validStreams.sort((a, b) => a.priority - b.priority)[0];
+
+                // Update title with actual filename if available
+                if (selectedStream.actualFilename) {
                     selectedStream.title = formatFilenameTitle(
-                        actualFilename,
+                        selectedStream.actualFilename,
                         selectedStream.originalTitle,
                         selectedStream.size
                     );
                 }
-            } else {
-                log(`[HDHub4u] No verified link for ${groupKey}; keeping best unverified candidate (probe inconclusive)`);
-                // Try to derive a filename from the URL alone
+
+                return selectedStream;
+            } else if (groupStreams.length > 0) {
+                log(`[HDHub4u] No working links found for ${groupKey}, using first as fallback`);
+                const fallbackStream = groupStreams[0];
+
+                // Try to extract filename for fallback stream too
                 try {
-                    const actualFilename = extractFilename({}, selectedStream.url); // No headers, just URL
+                    const actualFilename = extractFilename({}, fallbackStream.url); // No headers, just URL
                     if (actualFilename) {
-                        selectedStream.title = formatFilenameTitle(
+                        fallbackStream.title = formatFilenameTitle(
                             actualFilename,
-                            selectedStream.originalTitle,
-                            selectedStream.size
+                            fallbackStream.originalTitle,
+                            fallbackStream.size
                         );
                     }
                 } catch (error) {
                     // Filename extraction failed, keep original title
                 }
+
+                return fallbackStream;
             }
-            return selectedStream;
+
+            return null;
         });
 
         // Wait for all group validations to complete
