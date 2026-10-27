@@ -274,14 +274,7 @@ async function getRedirectLinks(url) {
 
         return url;
     } catch (e) {
-        // The message alone doesn't say which request failed (the initial fetch of `url`
-        // or the follow-up `?re=` request), so include the actual failing request URL.
-        const failedUrl = (e.config && e.config.url) || url;
-        const status = e.response ? ` (HTTP ${e.response.status})` : '';
         console.error(`[HDHub4u] Error processing link ${url}:`, e.message);
-        if (failedUrl !== url) {
-            console.error(`[HDHub4u] Failing request was: ${failedUrl}${status}`);
-        }
         return url;
     }
 }
@@ -302,12 +295,6 @@ async function loadExtractor(url, referer = MAIN_URL) {
         const finalLink = await getRedirectLinks(url);
         if (!finalLink) {
             log(`[HDHub4u] Failed to resolve redirect link: ${url}`);
-            return [];
-        }
-        if (finalLink === url) {
-            // getRedirectLinks returns the input URL when resolution fails. The URL still
-            // contains "?id=", so recursing would re-request the same URL indefinitely.
-            console.error(`[HDHub4u] Redirect could not be resolved, skipping: ${url}`);
             return [];
         }
         log(`[HDHub4u] Redirect resolved to: ${finalLink}`);
