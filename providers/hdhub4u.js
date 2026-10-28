@@ -521,7 +521,28 @@ async function hubCloudExtractor(url, referer) {
     })();
 
     const links = [];
-    const elements = $('div.card-body h2 a.btn').get();
+    const elements = $('a').filter((_, el) => {
+    const text = $(el).text().trim().toLowerCase();
+    const href = ($(el).attr('href') || '').toLowerCase();
+
+    return (
+        href.includes('pixeldrain') ||
+        href.includes('fsl') ||
+        href.includes('hubcloud') ||
+        href.includes('hubcdn') ||
+        href.includes('hubdrive') ||
+        href.includes('hblinks') ||
+        href.includes('hubstream') ||
+        href.includes('r2.dev') ||
+        href.includes('workers.dev') ||
+        text.includes('download file') ||
+        text.includes('fsl') ||
+        text.includes('10gbps') ||
+        text.includes('pixelserver') ||
+        text.includes('s3 server') ||
+        text.includes('buzzserver')
+    );
+}).get();
 
     for (const element of elements) {
         const link = $(element).attr('href');
