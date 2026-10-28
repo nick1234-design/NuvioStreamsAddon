@@ -16,7 +16,7 @@ console.error = function(...args) {
 };
 
 // Main URL for MoviesDrive
-let mainUrl = 'https://moviesdrive.design';
+let mainUrl = 'https://new4.moviesdrive.beer';
 const cinemetaUrl = 'https://v3-cinemeta.strem.io/meta';
 
 // Function to make HTTP requests without async/await
