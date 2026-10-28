@@ -290,7 +290,7 @@ async function loadExtractor(url, referer = MAIN_URL) {
     const hostname = new URL(url).hostname;
 
     // Some links from the main site are redirectors that need to be resolved first.
-    if (url.includes("?id=") || hostname.includes('techyboy4u')) {
+    if ((url.includes("?id=") && !hostname.includes('hubcloud')) || hostname.includes('techyboy4u')) {
         log(`[HDHub4u] Processing redirect URL: ${url} (hostname: ${hostname})`);
         const finalLink = await getRedirectLinks(url);
         if (!finalLink) {
