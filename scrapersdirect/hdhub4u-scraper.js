@@ -20,7 +20,7 @@ const agent = new https.Agent({
     rejectUnauthorized: false
 });
 
-let MAIN_URL = "https://new9.hdhub4u.cl"; // Default domain
+let MAIN_URL = "https://new10.hdhub4u.cl"; // Default domain
 
 const DOMAINS_URL = "https://raw.githubusercontent.com/phisher98/TVVVV/refs/heads/main/domains.json";
 
