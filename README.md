@@ -6,13 +6,10 @@ A customized fork of NuvioStreams with restored sources and compatibility improv
 
 ### ✅ 4KHDHub
 
-Successfully integrated and restored 4KHDHub. FSL and Pixeldrain links are working in my build.
-
 ### ✅ HdHub4u 
 
 ### ✅ ShowBox
 
-ShowBox is working as a second source for finding movies and TV series.
 
 ## 🛠️ About This Build
 
