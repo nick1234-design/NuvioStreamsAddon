@@ -8,6 +8,8 @@ A customized fork of NuvioStreams with restored sources and compatibility improv
 
 ### ✅ HdHub4u 
 
+### ✅ PlayImdb 
+
 ### ✅ ShowBox
 
 
