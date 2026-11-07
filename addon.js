@@ -170,6 +170,10 @@ console.log(`[addon.js] MovieBox provider fetching enabled: ${ENABLE_MOVIEBOX_PR
 const ENABLE_PLAYIMDB_PROVIDER = process.env.ENABLE_PLAYIMDB_PROVIDER !== 'false'; // Defaults to true if not set or not 'false'
 console.log(`[addon.js] PlayIMDb provider fetching enabled: ${ENABLE_PLAYIMDB_PROVIDER}`);
 
+// NEW: Read environment variable for Cinejoy
+const ENABLE_CINEJOY_PROVIDER = process.env.ENABLE_CINEJOY_PROVIDER !== 'false'; // Defaults to true if not set or not 'false'
+console.log(`[addon.js] Cinejoy provider fetching enabled: ${ENABLE_CINEJOY_PROVIDER}`);
+
 // External provider service configuration
 const USE_EXTERNAL_PROVIDERS = process.env.USE_EXTERNAL_PROVIDERS === 'true';
 const EXTERNAL_UHDMOVIES_URL = USE_EXTERNAL_PROVIDERS ? process.env.EXTERNAL_UHDMOVIES_URL : null;
@@ -206,6 +210,7 @@ const { getHDHub4uStreams } = require('./providers/hdhub4u.js'); // NEW: Import 
 const { getVixsrcStreams } = require('./providers/vixsrc.js'); // NEW: Import from vixsrc.js
 const { getMovieBoxStreams } = require('./providers/moviebox.js'); // NEW: Import from moviebox.js
 const { getPlayIMDbStreams } = require('./providers/playimdb.js'); // NEW: Import from playimdb.js
+const { getCinejoyStreams } = require('./providers/cinejoy.js'); // NEW: Import from cinejoy.js
 const axios = require('axios'); // For external provider requests
 
 // Helper function to make requests to external provider services
@@ -1731,6 +1736,48 @@ builder.defineStreamHandler(async (args) => {
                 await saveStreamToCache('playimdb', tmdbTypeFromId, tmdbId, [], 'failed', seasonNum, episodeNum);
                 return [];
             }
+        },
+
+        // Cinejoy provider with cache integration
+        cinejoy: async () => {
+            if (!ENABLE_CINEJOY_PROVIDER) {
+                console.log('[Cinejoy] Skipping fetch: Disabled by environment variable.');
+                return [];
+            }
+            if (!shouldFetch('cinejoy')) {
+                console.log('[Cinejoy] Skipping fetch: Not selected by user.');
+                return [];
+            }
+
+            // Try to get cached streams first
+            const cachedStreams = await getStreamFromCache('cinejoy', tmdbTypeFromId, tmdbId, seasonNum, episodeNum);
+            if (cachedStreams) {
+                console.log(`[Cinejoy] Using ${cachedStreams.length} streams from cache.`);
+                return cachedStreams.map(stream => ({ ...stream, provider: 'Cinejoy' }));
+            }
+
+            // No cache or expired, fetch fresh
+            try {
+                console.log(`[Cinejoy] Fetching new streams...`);
+                const streams = await getCinejoyStreams(tmdbId, tmdbTypeFromId, seasonNum, episodeNum);
+
+                if (streams && streams.length > 0) {
+                    console.log(`[Cinejoy] Successfully fetched ${streams.length} streams.`);
+                    // Save to cache
+                    await saveStreamToCache('cinejoy', tmdbTypeFromId, tmdbId, streams, 'ok', seasonNum, episodeNum);
+                    return streams.map(stream => ({ ...stream, provider: 'Cinejoy' }));
+                } else {
+                    console.log(`[Cinejoy] No streams returned.`);
+                    // Save empty result
+                    await saveStreamToCache('cinejoy', tmdbTypeFromId, tmdbId, [], 'failed', seasonNum, episodeNum);
+                    return [];
+                }
+            } catch (err) {
+                console.error(`[Cinejoy] Error fetching streams:`, err.message);
+                // Save error status to cache
+                await saveStreamToCache('cinejoy', tmdbTypeFromId, tmdbId, [], 'failed', seasonNum, episodeNum);
+                return [];
+            }
         }
     };
 
@@ -1754,7 +1801,8 @@ builder.defineStreamHandler(async (args) => {
             timeProvider('HDHub4u', providerFetchFunctions.hdhub4u()),
             timeProvider('Vixsrc', providerFetchFunctions.vixsrc()),
             timeProvider('MovieBox', providerFetchFunctions.moviebox()),
-            timeProvider('PlayIMDb', providerFetchFunctions.playimdb())
+            timeProvider('PlayIMDb', providerFetchFunctions.playimdb()),
+            timeProvider('Cinejoy', providerFetchFunctions.cinejoy())
         ];
 
         // Implement proper timeout that returns results immediately after 10 seconds
@@ -1786,7 +1834,7 @@ builder.defineStreamHandler(async (args) => {
             ));
 
             providerResults = currentResults.map((result, index) => {
-                const providerNames = ['ShowBox', 'Soaper TV', 'VidSrc', 'VidZee', 'MP4Hydra', 'UHDMovies', 'MoviesMod', 'TopMovies', 'MoviesDrive', '4KHDHub', 'HDHub4u', 'Vixsrc', 'MovieBox', 'PlayIMDb'];
+                const providerNames = ['ShowBox', 'Soaper TV', 'VidSrc', 'VidZee', 'MP4Hydra', 'UHDMovies', 'MoviesMod', 'TopMovies', 'MoviesDrive', '4KHDHub', 'HDHub4u', 'Vixsrc', 'MovieBox', 'PlayIMDb', 'Cinejoy'];
                 if (result.status === 'fulfilled' && Array.isArray(result.value) && result.value.length > 0) {
                     console.log(`[Timeout] Provider ${providerNames[index]} completed with ${result.value.length} streams.`);
                     return result.value;
@@ -1821,7 +1869,8 @@ builder.defineStreamHandler(async (args) => {
             'HDHub4u': ENABLE_HDHUB4U_PROVIDER && shouldFetch('hdhub4u') ? applyAllStreamFilters(providerResults[10], 'HDHub4u', minQualitiesPreferences.hdhub4u, excludeCodecsPreferences.hdhub4u) : [],
             'Vixsrc': ENABLE_VIXSRC_PROVIDER && shouldFetch('vixsrc') ? applyAllStreamFilters(providerResults[11], 'Vixsrc', minQualitiesPreferences.vixsrc, excludeCodecsPreferences.vixsrc) : [],
             'MovieBox': ENABLE_MOVIEBOX_PROVIDER && shouldFetch('moviebox') ? applyAllStreamFilters(providerResults[12], 'MovieBox', minQualitiesPreferences.moviebox, excludeCodecsPreferences.moviebox) : [],
-            'PlayIMDb': ENABLE_PLAYIMDB_PROVIDER && shouldFetch('playimdb') ? applyAllStreamFilters(providerResults[13], 'PlayIMDb', minQualitiesPreferences.playimdb, excludeCodecsPreferences.playimdb) : []
+            'PlayIMDb': ENABLE_PLAYIMDB_PROVIDER && shouldFetch('playimdb') ? applyAllStreamFilters(providerResults[13], 'PlayIMDb', minQualitiesPreferences.playimdb, excludeCodecsPreferences.playimdb) : [],
+            'Cinejoy': ENABLE_CINEJOY_PROVIDER && shouldFetch('cinejoy') ? applyAllStreamFilters(providerResults[14], 'Cinejoy', minQualitiesPreferences.cinejoy, excludeCodecsPreferences.cinejoy) : []
         };
 
         // Sort streams for each provider by quality, then size
@@ -1841,7 +1890,7 @@ builder.defineStreamHandler(async (args) => {
 
         // Combine streams in the preferred provider order
         combinedRawStreams = [];
-        const providerOrder = ['ShowBox', 'MovieBox', 'UHDMovies', '4KHDHub', 'HDHub4u', 'MoviesMod', 'TopMovies', 'MoviesDrive', 'Soaper TV', 'VidZee', 'MP4Hydra', 'VidSrc', 'Vixsrc', 'PlayIMDb'];
+        const providerOrder = ['ShowBox', 'MovieBox', 'UHDMovies', '4KHDHub', 'HDHub4u', 'MoviesMod', 'TopMovies', 'MoviesDrive', 'Soaper TV', 'VidZee', 'MP4Hydra', 'VidSrc', 'Vixsrc', 'PlayIMDb', 'Cinejoy'];
         providerOrder.forEach(providerKey => {
             if (streamsByProvider[providerKey] && streamsByProvider[providerKey].length > 0) {
                 combinedRawStreams.push(...streamsByProvider[providerKey]);
@@ -1920,6 +1969,22 @@ builder.defineStreamHandler(async (args) => {
                 playImdbStream.subtitles = stream.subtitles;
             }
             return playImdbStream;
+        }
+
+        // --- NEW: Special handling for Cinejoy to use its pre-formatted name/title, headers and subtitles ---
+        if (stream.provider === 'Cinejoy') {
+            const cinejoyStream = {
+                name: stream.name,    // e.g., "Cinejoy Nebula - 1080p"
+                title: stream.title,  // Built by providers/cinejoy.js
+                url: stream.url,
+                type: 'url',
+                availability: 2,
+                behaviorHints: stream.behaviorHints || { notWebReady: true }
+            };
+            if (Array.isArray(stream.subtitles) && stream.subtitles.length > 0) {
+                cinejoyStream.subtitles = stream.subtitles;
+            }
+            return cinejoyStream;
         }
 
         const qualityLabel = stream.quality || 'UNK'; // UNK for unknown
