@@ -3,7 +3,7 @@
   "version": "0.5.17",
   "name": "Nuvio Stremio Addon | Elfhosted",
   "description": "Stremio addon for high-quality streaming links.",
-  "logo": "https://raw.githubusercontent.com/tapframe/NuvioStreaming/refs/heads/appstore/assets/titlelogo.png",
+  "logo": "https://raw.githubusercontent.com/nick1234-design/NuvioStreamsAddon/master/nuvio-logo-256.png",
   "resources": [
     "stream"
   ],
