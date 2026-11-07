@@ -1728,6 +1728,11 @@
             /* Red gradient for Cinejoy */
         }
 
+        .vaplayer-icon {
+            background: linear-gradient(135deg, #7b2ff7, #4a1fb8);
+            /* Purple gradient for VAplayer */
+        }
+
         .moviesdrive-icon {
             background: linear-gradient(135deg, #ff6b35, #f7931e);
             /* Orange gradient for MoviesDrive */
@@ -1931,6 +1936,11 @@
                         <div class="provider-name">Cinejoy</div>
                         <span class="provider-detail">Direct 1080p/4K Streams</span>
                     </div>
+                    <div class="provider-item">
+                        <div class="provider-icon vaplayer-icon">▶️</div>
+                        <div class="provider-name">VAplayer</div>
+                        <span class="provider-detail">Direct 1080p Streams</span>
+                    </div>
                 </div>
 
                 <div class="full-width disclaimer"
@@ -2084,6 +2094,21 @@
                                 <option value="all">All</option>
                                 <option value="1080p">1080p+</option>
                                 <option value="4k">4K+</option>
+                            </select>
+                        </div>
+                        <div class="provider-checkbox-item"
+                            style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem;">
+                            <div style="display: flex; align-items: center;">
+                                <input type="checkbox" id="providerVaplayer" name="providerSelect" value="vaplayer"
+                                    checked="" style="margin-right: 0.5rem; accent-color: var(--primary);">
+                                <label for="providerVaplayer" style="font-size: 0.9rem;">VAplayer <span
+                                        style="font-size: 0.75rem; color: var(--text-light);">(~4s)</span> <span
+                                        style="font-size: 0.75rem; color: #7b2ff7;">1080p</span></label>
+                            </div>
+                            <select id="qualityVaplayer" name="providerQuality" data-provider="vaplayer"
+                                class="provider-sort-select">
+                                <option value="all">All</option>
+                                <option value="1080p">1080p+</option>
                             </select>
                         </div>
 
