@@ -1723,6 +1723,11 @@
             /* Gold gradient for PlayIMDb */
         }
 
+        .cinejoy-icon {
+            background: linear-gradient(135deg, #e50914, #8e0b14);
+            /* Red gradient for Cinejoy */
+        }
+
         .moviesdrive-icon {
             background: linear-gradient(135deg, #ff6b35, #f7931e);
             /* Orange gradient for MoviesDrive */
@@ -1955,6 +1960,11 @@
                         <div class="provider-icon playimdb-icon">🟡</div>
                         <div class="provider-name">PlayIMDb</div>
                         <span class="provider-detail">Direct HD/4K Streams</span>
+                    </div>
+                    <div class="provider-item">
+                        <div class="provider-icon cinejoy-icon">🎞️</div>
+                        <div class="provider-name">Cinejoy</div>
+                        <span class="provider-detail">Direct 1080p/4K Streams</span>
                     </div>
                 </div>
 
@@ -2236,6 +2246,22 @@
                                 class="provider-sort-select">
                                 <option value="all">All</option>
                                 <option value="720p">720p+</option>
+                                <option value="1080p">1080p+</option>
+                                <option value="4k">4K+</option>
+                            </select>
+                        </div>
+                        <div class="provider-checkbox-item"
+                            style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem;">
+                            <div style="display: flex; align-items: center;">
+                                <input type="checkbox" id="providerCinejoy" name="providerSelect" value="cinejoy"
+                                    checked="" style="margin-right: 0.5rem; accent-color: var(--primary);">
+                                <label for="providerCinejoy" style="font-size: 0.9rem;">Cinejoy <span
+                                        style="font-size: 0.75rem; color: var(--text-light);">(~6s)</span> <span
+                                        style="font-size: 0.75rem; color: #e50914;">1080p/4K</span></label>
+                            </div>
+                            <select id="qualityCinejoy" name="providerQuality" data-provider="cinejoy"
+                                class="provider-sort-select">
+                                <option value="all">All</option>
                                 <option value="1080p">1080p+</option>
                                 <option value="4k">4K+</option>
                             </select>
