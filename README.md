@@ -12,6 +12,12 @@ A customized fork of NuvioStreams with restored sources and compatibility improv
 
 ### ✅ ShowBox
 
+### ✅ CineJoy
+
+### ✅ VAPlayer
+
+
+
 
 ## 🛠️ About This Build
 
