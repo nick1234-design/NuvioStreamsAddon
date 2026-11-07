@@ -174,6 +174,10 @@ console.log(`[addon.js] PlayIMDb provider fetching enabled: ${ENABLE_PLAYIMDB_PR
 const ENABLE_CINEJOY_PROVIDER = process.env.ENABLE_CINEJOY_PROVIDER !== 'false'; // Defaults to true if not set or not 'false'
 console.log(`[addon.js] Cinejoy provider fetching enabled: ${ENABLE_CINEJOY_PROVIDER}`);
 
+// NEW: Read environment variable for VAplayer
+const ENABLE_VAPLAYER_PROVIDER = process.env.ENABLE_VAPLAYER_PROVIDER !== 'false'; // Defaults to true if not set or not 'false'
+console.log(`[addon.js] VAplayer provider fetching enabled: ${ENABLE_VAPLAYER_PROVIDER}`);
+
 // External provider service configuration
 const USE_EXTERNAL_PROVIDERS = process.env.USE_EXTERNAL_PROVIDERS === 'true';
 const EXTERNAL_UHDMOVIES_URL = USE_EXTERNAL_PROVIDERS ? process.env.EXTERNAL_UHDMOVIES_URL : null;
@@ -211,6 +215,7 @@ const { getVixsrcStreams } = require('./providers/vixsrc.js'); // NEW: Import fr
 const { getMovieBoxStreams } = require('./providers/moviebox.js'); // NEW: Import from moviebox.js
 const { getPlayIMDbStreams } = require('./providers/playimdb.js'); // NEW: Import from playimdb.js
 const { getCinejoyStreams } = require('./providers/cinejoy.js'); // NEW: Import from cinejoy.js
+const { getVAplayerStreams } = require('./providers/vaplayer.js'); // NEW: Import from vaplayer.js
 const axios = require('axios'); // For external provider requests
 
 // Helper function to make requests to external provider services
@@ -1778,6 +1783,48 @@ builder.defineStreamHandler(async (args) => {
                 await saveStreamToCache('cinejoy', tmdbTypeFromId, tmdbId, [], 'failed', seasonNum, episodeNum);
                 return [];
             }
+        },
+
+        // VAplayer provider with cache integration
+        vaplayer: async () => {
+            if (!ENABLE_VAPLAYER_PROVIDER) {
+                console.log('[VAplayer] Skipping fetch: Disabled by environment variable.');
+                return [];
+            }
+            if (!shouldFetch('vaplayer')) {
+                console.log('[VAplayer] Skipping fetch: Not selected by user.');
+                return [];
+            }
+
+            // Try to get cached streams first
+            const cachedStreams = await getStreamFromCache('vaplayer', tmdbTypeFromId, tmdbId, seasonNum, episodeNum);
+            if (cachedStreams) {
+                console.log(`[VAplayer] Using ${cachedStreams.length} streams from cache.`);
+                return cachedStreams.map(stream => ({ ...stream, provider: 'VAplayer' }));
+            }
+
+            // No cache or expired, fetch fresh
+            try {
+                console.log(`[VAplayer] Fetching new streams...`);
+                const streams = await getVAplayerStreams(tmdbId, tmdbTypeFromId, seasonNum, episodeNum);
+
+                if (streams && streams.length > 0) {
+                    console.log(`[VAplayer] Successfully fetched ${streams.length} streams.`);
+                    // Save to cache
+                    await saveStreamToCache('vaplayer', tmdbTypeFromId, tmdbId, streams, 'ok', seasonNum, episodeNum);
+                    return streams.map(stream => ({ ...stream, provider: 'VAplayer' }));
+                } else {
+                    console.log(`[VAplayer] No streams returned.`);
+                    // Save empty result
+                    await saveStreamToCache('vaplayer', tmdbTypeFromId, tmdbId, [], 'failed', seasonNum, episodeNum);
+                    return [];
+                }
+            } catch (err) {
+                console.error(`[VAplayer] Error fetching streams:`, err.message);
+                // Save error status to cache
+                await saveStreamToCache('vaplayer', tmdbTypeFromId, tmdbId, [], 'failed', seasonNum, episodeNum);
+                return [];
+            }
         }
     };
 
@@ -1802,7 +1849,8 @@ builder.defineStreamHandler(async (args) => {
             timeProvider('Vixsrc', providerFetchFunctions.vixsrc()),
             timeProvider('MovieBox', providerFetchFunctions.moviebox()),
             timeProvider('PlayIMDb', providerFetchFunctions.playimdb()),
-            timeProvider('Cinejoy', providerFetchFunctions.cinejoy())
+            timeProvider('Cinejoy', providerFetchFunctions.cinejoy()),
+            timeProvider('VAplayer', providerFetchFunctions.vaplayer())
         ];
 
         // Implement proper timeout that returns results immediately after 10 seconds
@@ -1834,7 +1882,7 @@ builder.defineStreamHandler(async (args) => {
             ));
 
             providerResults = currentResults.map((result, index) => {
-                const providerNames = ['ShowBox', 'Soaper TV', 'VidSrc', 'VidZee', 'MP4Hydra', 'UHDMovies', 'MoviesMod', 'TopMovies', 'MoviesDrive', '4KHDHub', 'HDHub4u', 'Vixsrc', 'MovieBox', 'PlayIMDb', 'Cinejoy'];
+                const providerNames = ['ShowBox', 'Soaper TV', 'VidSrc', 'VidZee', 'MP4Hydra', 'UHDMovies', 'MoviesMod', 'TopMovies', 'MoviesDrive', '4KHDHub', 'HDHub4u', 'Vixsrc', 'MovieBox', 'PlayIMDb', 'Cinejoy', 'VAplayer'];
                 if (result.status === 'fulfilled' && Array.isArray(result.value) && result.value.length > 0) {
                     console.log(`[Timeout] Provider ${providerNames[index]} completed with ${result.value.length} streams.`);
                     return result.value;
@@ -1870,7 +1918,8 @@ builder.defineStreamHandler(async (args) => {
             'Vixsrc': ENABLE_VIXSRC_PROVIDER && shouldFetch('vixsrc') ? applyAllStreamFilters(providerResults[11], 'Vixsrc', minQualitiesPreferences.vixsrc, excludeCodecsPreferences.vixsrc) : [],
             'MovieBox': ENABLE_MOVIEBOX_PROVIDER && shouldFetch('moviebox') ? applyAllStreamFilters(providerResults[12], 'MovieBox', minQualitiesPreferences.moviebox, excludeCodecsPreferences.moviebox) : [],
             'PlayIMDb': ENABLE_PLAYIMDB_PROVIDER && shouldFetch('playimdb') ? applyAllStreamFilters(providerResults[13], 'PlayIMDb', minQualitiesPreferences.playimdb, excludeCodecsPreferences.playimdb) : [],
-            'Cinejoy': ENABLE_CINEJOY_PROVIDER && shouldFetch('cinejoy') ? applyAllStreamFilters(providerResults[14], 'Cinejoy', minQualitiesPreferences.cinejoy, excludeCodecsPreferences.cinejoy) : []
+            'Cinejoy': ENABLE_CINEJOY_PROVIDER && shouldFetch('cinejoy') ? applyAllStreamFilters(providerResults[14], 'Cinejoy', minQualitiesPreferences.cinejoy, excludeCodecsPreferences.cinejoy) : [],
+            'VAplayer': ENABLE_VAPLAYER_PROVIDER && shouldFetch('vaplayer') ? applyAllStreamFilters(providerResults[15], 'VAplayer', minQualitiesPreferences.vaplayer, excludeCodecsPreferences.vaplayer) : []
         };
 
         // Sort streams for each provider by quality, then size
@@ -1890,7 +1939,7 @@ builder.defineStreamHandler(async (args) => {
 
         // Combine streams in the preferred provider order
         combinedRawStreams = [];
-        const providerOrder = ['ShowBox', 'MovieBox', 'UHDMovies', '4KHDHub', 'HDHub4u', 'MoviesMod', 'TopMovies', 'MoviesDrive', 'Soaper TV', 'VidZee', 'MP4Hydra', 'VidSrc', 'Vixsrc', 'PlayIMDb', 'Cinejoy'];
+        const providerOrder = ['ShowBox', 'MovieBox', 'UHDMovies', '4KHDHub', 'HDHub4u', 'MoviesMod', 'TopMovies', 'MoviesDrive', 'Soaper TV', 'VidZee', 'MP4Hydra', 'VidSrc', 'Vixsrc', 'PlayIMDb', 'Cinejoy', 'VAplayer'];
         providerOrder.forEach(providerKey => {
             if (streamsByProvider[providerKey] && streamsByProvider[providerKey].length > 0) {
                 combinedRawStreams.push(...streamsByProvider[providerKey]);
@@ -1985,6 +2034,22 @@ builder.defineStreamHandler(async (args) => {
                 cinejoyStream.subtitles = stream.subtitles;
             }
             return cinejoyStream;
+        }
+
+        // --- NEW: Special handling for VAplayer to use its pre-formatted name/title, headers and subtitles ---
+        if (stream.provider === 'VAplayer') {
+            const vaplayerStream = {
+                name: stream.name,    // e.g., "VAplayer - 1080p"
+                title: stream.title,  // Built by providers/vaplayer.js
+                url: stream.url,
+                type: 'url',
+                availability: 2,
+                behaviorHints: stream.behaviorHints || { notWebReady: true }
+            };
+            if (Array.isArray(stream.subtitles) && stream.subtitles.length > 0) {
+                vaplayerStream.subtitles = stream.subtitles;
+            }
+            return vaplayerStream;
         }
 
         const qualityLabel = stream.quality || 'UNK'; // UNK for unknown
