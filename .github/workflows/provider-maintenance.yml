@@ -48,12 +48,12 @@ jobs:
 
             This workflow runs daily. Inspect these upstream Nuvio plugin sources:
             - Streamline: https://github.com/itsmeadarsh2008/Streamline
-            - Nuvio Zero manifest: https://raw.githubusercontent.com/ticolibre/NuvioZero/main/manifest.json
+            - Nuvio Zero: https://github.com/TicoLibre (identify the exact repository and manifest from this owner's repositories; do not guess a raw manifest URL).
 
             Goal:
             1. Inspect upstream changes since the previous successful maintenance run where possible.
             2. Identify genuinely new or updated providers and compare them with this repository's existing providers.
-            3. Check source licenses and attribution before considering any code reuse. Streamline identifies itself as GPL-3.0-only; do not copy or port its implementation into this repository unless this repository's licensing is confirmed compatible and all required notices are preserved. If compatibility is unclear, report the finding only.
+            3. Check each upstream repository's actual LICENSE file and attribution requirements before considering any code reuse. Do not assume a license from a README badge or third-party summary. If licensing is missing, unclear, or incompatible, do not copy or port implementation code; report the finding only.
             4. Remember that Nuvio plugins and this project are different architectures. Do not copy Nuvio plugin bundles into this Stremio addon. Any adaptation must be reviewed against this repository's provider interface, runtime, server.js, addon.js, and configuration UI.
             5. Preserve all existing working providers and user configuration. Never delete, rename, disable, or replace an existing provider as part of routine maintenance.
             6. Do not add a provider based only on its name or manifest entry. Inspect its implementation, dependencies, runtime requirements, license, and compatibility.
