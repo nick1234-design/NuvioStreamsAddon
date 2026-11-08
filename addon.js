@@ -117,37 +117,37 @@ if (USE_REDIS_CACHE) {
 // (Removed) Cuevana, HollyMovieHD, Xprime provider flags
 
 // NEW: Read environment variable for VidZee
-const ENABLE_VIDZEE_PROVIDER = process.env.ENABLE_VIDZEE_PROVIDER !== 'false'; // Defaults to true
+const ENABLE_VIDZEE_PROVIDER = false; // Disabled: only the six verified working providers are exposed.
 console.log(`[addon.js] VidZee provider fetching enabled: ${ENABLE_VIDZEE_PROVIDER}`);
 
 // NEW: Read environment variable for MP4Hydra
-const ENABLE_MP4HYDRA_PROVIDER = process.env.ENABLE_MP4HYDRA_PROVIDER !== 'false'; // Defaults to true if not set or not 'false'
+const ENABLE_MP4HYDRA_PROVIDER = false; // Disabled: only the six verified working providers are exposed.
 console.log(`[addon.js] MP4Hydra provider fetching enabled: ${ENABLE_MP4HYDRA_PROVIDER}`);
 
 // (Removed) HiAnime provider flag
 
 // NEW: Read environment variable for UHDMovies
-const ENABLE_UHDMOVIES_PROVIDER = process.env.ENABLE_UHDMOVIES_PROVIDER !== 'false'; // Defaults to true if not set or not 'false'
+const ENABLE_UHDMOVIES_PROVIDER = false; // Disabled: only the six verified working providers are exposed.
 console.log(`[addon.js] UHDMovies provider fetching enabled: ${ENABLE_UHDMOVIES_PROVIDER}`);
 
 // (Removed) AnimePahe provider flag
 
 // NEW: Read environment variable for MoviesMod
-const ENABLE_MOVIESMOD_PROVIDER = process.env.ENABLE_MOVIESMOD_PROVIDER !== 'false'; // Defaults to true if not set or not 'false'
+const ENABLE_MOVIESMOD_PROVIDER = false; // Disabled: only the six verified working providers are exposed.
 console.log(`[addon.js] MoviesMod provider fetching enabled: ${ENABLE_MOVIESMOD_PROVIDER}`);
 
 // NEW: Read environment variable for TopMovies
-const ENABLE_TOPMOVIES_PROVIDER = process.env.ENABLE_TOPMOVIES_PROVIDER !== 'false'; // Defaults to true if not set or not 'false'
+const ENABLE_TOPMOVIES_PROVIDER = false; // Disabled: only the six verified working providers are exposed.
 console.log(`[addon.js] TopMovies provider fetching enabled: ${ENABLE_TOPMOVIES_PROVIDER}`);
 
 // NEW: Read environment variable for SoaperTV
-const ENABLE_SOAPERTV_PROVIDER = process.env.ENABLE_SOAPERTV_PROVIDER !== 'false'; // Defaults to true
+const ENABLE_SOAPERTV_PROVIDER = false; // Disabled: only the six verified working providers are exposed.
 console.log(`[addon.js] SoaperTV provider fetching enabled: ${ENABLE_SOAPERTV_PROVIDER}`);
 
 
 
 // NEW: Read environment variable for MoviesDrive
-const ENABLE_MOVIESDRIVE_PROVIDER = process.env.ENABLE_MOVIESDRIVE_PROVIDER !== 'false'; // Defaults to true if not set or not 'false'
+const ENABLE_MOVIESDRIVE_PROVIDER = false; // Disabled: only the six verified working providers are exposed.
 console.log(`[addon.js] MoviesDrive provider fetching enabled: ${ENABLE_MOVIESDRIVE_PROVIDER}`);
 
 // NEW: Read environment variable for 4KHDHub
@@ -159,11 +159,11 @@ const ENABLE_HDHUB4U_PROVIDER = process.env.ENABLE_HDHUB4U_PROVIDER !== 'false';
 console.log(`[addon.js] HDHub4u provider fetching enabled: ${ENABLE_HDHUB4U_PROVIDER}`);
 
 // NEW: Read environment variable for Vixsrc
-const ENABLE_VIXSRC_PROVIDER = process.env.ENABLE_VIXSRC_PROVIDER !== 'false'; // Defaults to true if not set or not 'false'
+const ENABLE_VIXSRC_PROVIDER = false; // Disabled: only the six verified working providers are exposed.
 console.log(`[addon.js] Vixsrc provider fetching enabled: ${ENABLE_VIXSRC_PROVIDER}`);
 
 // NEW: Read environment variable for MovieBox
-const ENABLE_MOVIEBOX_PROVIDER = process.env.ENABLE_MOVIEBOX_PROVIDER !== 'false'; // Defaults to true if not set or not 'false'
+const ENABLE_MOVIEBOX_PROVIDER = false; // Disabled: only the six verified working providers are exposed.
 console.log(`[addon.js] MovieBox provider fetching enabled: ${ENABLE_MOVIEBOX_PROVIDER}`);
 
 // NEW: Read environment variable for PlayIMDb
@@ -1203,6 +1203,8 @@ builder.defineStreamHandler(async (args) => {
 
         // VidSrc provider with cache integration
         vidsrc: async () => {
+            console.log('[VidSrc] Disabled: not part of the six supported providers.');
+            return [];
             if (!shouldFetch('vidsrc')) {
                 console.log('[VidSrc] Skipping fetch: Not selected by user.');
                 return [];
@@ -1906,7 +1908,7 @@ builder.defineStreamHandler(async (args) => {
         const streamsByProvider = {
             'ShowBox': shouldFetch('showbox') ? applyAllStreamFilters(providerResults[0], 'ShowBox', minQualitiesPreferences.showbox, excludeCodecsPreferences.showbox) : [],
             'Soaper TV': ENABLE_SOAPERTV_PROVIDER && shouldFetch('soapertv') ? applyAllStreamFilters(providerResults[1], 'Soaper TV', minQualitiesPreferences.soapertv, excludeCodecsPreferences.soapertv) : [],
-            'VidSrc': shouldFetch('vidsrc') ? applyAllStreamFilters(providerResults[2], 'VidSrc', minQualitiesPreferences.vidsrc, excludeCodecsPreferences.vidsrc) : [],
+            'VidSrc': [], // Hidden and disabled; keep its result index reserved for compatibility.
             'VidZee': ENABLE_VIDZEE_PROVIDER && shouldFetch('vidzee') ? applyAllStreamFilters(providerResults[3], 'VidZee', minQualitiesPreferences.vidzee, excludeCodecsPreferences.vidzee) : [],
             'MP4Hydra': ENABLE_MP4HYDRA_PROVIDER && shouldFetch('mp4hydra') ? applyAllStreamFilters(providerResults[4], 'MP4Hydra', minQualitiesPreferences.mp4hydra, excludeCodecsPreferences.mp4hydra) : [],
             'UHDMovies': ENABLE_UHDMOVIES_PROVIDER && shouldFetch('uhdmovies') ? applyAllStreamFilters(providerResults[5], 'UHDMovies', minQualitiesPreferences.uhdmovies, excludeCodecsPreferences.uhdmovies) : [],
