@@ -1616,6 +1616,37 @@ function chooseStream(probes) {
  */
 // Remove repeated copies of the exact same destination without collapsing different servers,
 // qualities, or file variants. URL fragments do not affect the media resource.
+// Collapse the same media file when HDHub4u exposes it through more than one server.
+// Keep different qualities, episodes, sizes, and identifiable file variants.
+function dedupeEquivalentStreams(items) {
+    const seen = new Set();
+    return items.filter(item => {
+        if (!item || !item.url) return true;
+        const quality = parseQualityForSort(item.quality) || 0;
+        const episode = item.episode || 0;
+        const size = Number(item.size) || 0;
+        let filename = item.actualFilename || item.name || '';
+        if (!filename) {
+            try {
+                const pathPart = new URL(item.url).pathname.split('/').filter(Boolean).pop() || '';
+                if (/\.[a-z0-9]{2,5}$/i.test(pathPart) && !/^[a-f0-9_-]{12,}$/i.test(pathPart)) filename = pathPart;
+            } catch (e) {}
+        }
+        const normalizedName = String(filename)
+            .split(/[?#]/)[0]
+            .replace(/^.*[\\/]/, '')
+            .replace(/\.[a-z0-9]{2,5}$/i, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '');
+        const key = normalizedName
+            ? [quality, episode, size, normalizedName].join('|')
+            : [quality, episode, String(item.url).trim()].join('|');
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
 function dedupeByStreamUrl(items) {
     const seen = new Set();
     return items.filter(item => {
@@ -1645,13 +1676,13 @@ async function getHDHub4uStreams(tmdbId, mediaType, title, year = null, seasonNu
         await fetchAndUpdateDomain();
 
         // Define cache key
-        const cacheKey = `hdhub4u_final_v4_${mediaType}_${tmdbId}${seasonNum ? `_s${seasonNum}` : ''}${episodeNum ? `_e${episodeNum}` : ''}`;
+        const cacheKey = `hdhub4u_final_v5_${mediaType}_${tmdbId}${seasonNum ? `_s${seasonNum}` : ''}${episodeNum ? `_e${episodeNum}` : ''}`;
         log(`[HDHub4u] Cache key: ${cacheKey}`);
 
         // Try to get from cache first
         const cachedData = await getFromCache(cacheKey);
         if (cachedData && cachedData.length > 0) {
-            const dedupedCachedData = dedupeByStreamUrl(cachedData);
+            const dedupedCachedData = dedupeEquivalentStreams(dedupeByStreamUrl(cachedData));
             if (dedupedCachedData.length !== cachedData.length) {
                 await saveToCache(cacheKey, dedupedCachedData);
             }
@@ -1962,7 +1993,7 @@ async function getHDHub4uStreams(tmdbId, mediaType, title, year = null, seasonNu
         // Wait for all group validations to complete
         log(`[HDHub4u] Starting parallel validation of ${streamGroups.size} groups...`);
         const validationResults = await Promise.all(validationPromises);
-        const uniqueStreams = dedupeByStreamUrl(validationResults.filter(stream => stream !== null));
+        const uniqueStreams = dedupeEquivalentStreams(dedupeByStreamUrl(validationResults.filter(stream => stream !== null)));
 
         // Sort by quality (highest first)
         uniqueStreams.sort((a, b) => {
