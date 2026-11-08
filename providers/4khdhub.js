@@ -2221,7 +2221,7 @@ async function getStreams(tmdbId, type, season = null, episode = null) {
             }
             streamingLinks = streamingLinks.map(link => {
                 const oldTitle = String(link.title || '');
-                const sizeMatch = oldTitle.match(/\b\\d+(?:[.,]\\d+)?\\s*(?:GB|MB|KB)\b/i);
+                const sizeMatch = oldTitle.match(/\b\d+(?:[.,]\d+)?\s*(?:GB|MB|KB)\b/i);
                 return {
                     ...link,
                     title: sizeMatch ? `${displayTitle}\n${sizeMatch[0]}` : displayTitle
@@ -2234,7 +2234,7 @@ async function getStreams(tmdbId, type, season = null, episode = null) {
         const filteredLinks = streamingLinks.filter(link => {
             if (!link || !link.url) return false;
             const serverName = String(link.name || '');
-            const isAllowedServer = /\bFSL(?:\\s+Server)?\b/i.test(serverName) || /\bPixeldrain\b/i.test(serverName);
+            const isAllowedServer = /\bFSL(?:\s+Server)?\b/i.test(serverName) || /\bPixeldrain\b/i.test(serverName);
             if (!isAllowedServer) {
                 console.log(`[4KHDHub] Hiding non-FSL/Pixeldrain server: ${serverName || link.url}`);
                 return false;
