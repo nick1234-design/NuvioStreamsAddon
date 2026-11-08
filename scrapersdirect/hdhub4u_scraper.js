@@ -521,14 +521,36 @@ async function getDownloadLinks(mediaUrl) {
         }
     });
 
-    const seenUrls = new Set();
-    const finalLinks = results.flat().filter(l => {
+    function dedupeEquivalentFiles(items) {
+    const seen = new Set();
+    return items.filter(item => {
+        if (!item || !item.url) return false;
+        const quality = String(item.quality || '').toLowerCase();
+        const episode = item.episode || 0;
+        const size = Number(item.size) || 0;
+        const rawName = item.name || '';
+        const normalizedName = String(rawName)
+            .replace(/^.*[\\/]/, '')
+            .replace(/\.[a-z0-9]{2,5}$/i, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '');
+        const key = normalizedName
+            ? [quality, episode, size, normalizedName].join('|')
+            : [quality, episode, String(item.url).trim()].join('|');
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
+const seenUrls = new Set();
+    const finalLinks = dedupeEquivalentFiles(results.flat().filter(l => {
         if (!l.url || isBlocked(l.url)) return false;
         if (/\.zip(\?|$)/i.test(l.url) || /\.zip$/i.test(l.name || '')) return false;
         if (seenUrls.has(l.url)) return false;
         seenUrls.add(l.url);
         return true;
-    });
+    }));
 
     return { finalLinks, isMovie };
 }
