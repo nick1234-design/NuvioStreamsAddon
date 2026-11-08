@@ -338,10 +338,12 @@ function normalizeSubtitleTracks(raw) {
   }).filter(function (t) { return t.url; });
 }
 
-function makeStream(url, quality, headers, subs) {
+function makeStream(url, quality, headers, subs, format) {
+  var formatLabel = format ? " [" + format + "]" : "";
+  var titleFormat = format ? " • " + format : "";
   var s = {
-    name: "Cinejoy " + SERVER_NAME + " - " + quality,
-    title: "Cinejoy \u2022 " + SERVER_NAME + "\n" + quality,
+    name: "Cinejoy " + SERVER_NAME + " - " + quality + formatLabel,
+    title: "Cinejoy \u2022 " + SERVER_NAME + "\n" + quality + titleFormat,
     url: url,
     quality: quality,
     headers: headers,
@@ -368,7 +370,7 @@ function resolveStreamItems(items, headers) {
             var out = [];
             extractHlsVariants(text, item.playlist).forEach(function (v) {
               if (v.height !== 2160 && v.height !== 1080) return;
-              out.push(makeStream(v.url, v.height === 2160 ? "4K" : "1080p", headers, subs));
+              out.push(makeStream(v.url, v.height === 2160 ? "4K" : "1080p", headers, subs, "HLS"));
             });
             return out;
           })
