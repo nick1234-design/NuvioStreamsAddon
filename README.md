@@ -1,55 +1,67 @@
-<div align="center">
-
-<img src="https://raw.githubusercontent.com/nick1234-design/NuvioStreamsAddon/master/nuvio-logo-256.png" alt="NuvioStreams logo" width="180">
-
 # NuvioStreams
 
-**A Stremio addon that finds high-quality streaming links from multiple sources.**
+A configurable Stremio add-on that gathers direct streaming links from multiple provider integrations for movies and TV series.
 
-![Stremio](https://img.shields.io/badge/Stremio-Addon-8c1c2c?style=for-the-badge)
+<div align="center">
+
+![Stremio](https://img.shields.io/badge/Stremio-Add--on-8c1c2c?style=for-the-badge)
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-8c1c2c?style=for-the-badge)
-![Providers](https://img.shields.io/badge/Providers-6-8c1c2c?style=for-the-badge)
 
 </div>
 
----
-
 ## Features
 
-- Streams for **movies** and **TV series** inside Stremio
-- **6 providers** searched in parallel, so results come back fast
-- **HD, 1080p and 4K** sources
-- **Subtitles** where a provider supplies them
-- **Configuration page** to pick providers, minimum quality per provider and codec exclusions
-- **Stream caching** to avoid repeat lookups and speed up results
-- Each provider can be switched on or off from the page, or turned off server-wide with an environment variable
+- Movie and TV-series stream results in Stremio
+- Multiple provider integrations, with provider selection from the configuration page
+- Per-provider minimum-quality preferences
+- Optional codec exclusions for Dolby Vision and HDR formats
+- Stream-link caching to reduce repeat lookups
+- Optional Redis-backed caching
+- Cookie, region, and ScraperAPI configuration options where supported by a provider
+- Provider enable/disable switches for server administrators
 
-## Providers
+Provider availability, link quality, playback compatibility, and response times depend on the third-party source and can change without notice. A provider may return no links for a particular title or episode.
 
-| Provider | Quality | Notes |
-| --- | --- | --- |
-| ShowBox | HD / 4K | Direct links |
-| 4KHDHub | 1080p / 4K | Direct links |
-| HDHub4u | HD | Direct links |
-| PlayIMDb | HD / 4K | Direct links |
-| Cinejoy | 1080p / 4K | Direct links, subtitles |
-| VAplayer | 1080p | Direct links, subtitles |
+## Provider integrations
 
-Providers depend on third-party sites, so any of them can stop working without notice. If one starts returning nothing, turn it off in the configuration page or with its environment flag.
+The repository currently includes integrations for:
+
+| Provider | Notes |
+| --- | --- |
+| ShowBox | Main scraper; supports cookie and region configuration |
+| 4KHDHub | Direct-link extraction |
+| HDHub4u | Direct-link extraction |
+| PlayIMDb | Direct-link extraction |
+| Cinejoy | Stream links and subtitles when supplied |
+| VAplayer | Stream links and subtitles when supplied |
+| VidZee | Provider integration |
+| MP4Hydra | Provider integration |
+| UHDMovies | Provider integration; can use an external provider service |
+| MoviesMod | Provider integration; can use an external provider service |
+| TopMovies | Provider integration; can use an external provider service |
+| SoaperTV | Provider integration |
+| MoviesDrive | Provider integration |
+| Vixsrc | Provider integration |
+| MovieBox | Provider integration |
+
+The configuration page and server-side settings determine which integrations are available for a given installation. Not every provider is guaranteed to return results for every title.
 
 ## Installation
 
-1. Open your addon's configuration page (your deployed URL, for example `https://your-addon.vercel.app`).
-2. Choose the providers you want and set your quality preferences.
-3. Click the install button, or copy the generated link and paste it into Stremio's addon search box.
-4. Confirm the install in Stremio.
+1. Open the configuration page for your deployed NuvioStreams instance.
+2. Select the providers you want to use and adjust their quality preferences.
+3. Configure any provider-specific options that you need.
+4. Use the install button or copy the generated manifest link into Stremio.
+5. Confirm the add-on installation in Stremio.
+
+Keep your personal manifest URL private if it contains cookies or other provider configuration values.
 
 ## Self-hosting
 
 ### Requirements
 
-- Node.js 18 or newer
-- A free [TMDB API key](https://www.themoviedb.org/settings/api)
+- Node.js 18 or newer is recommended.
+- A TMDB API key from [The Movie Database](https://www.themoviedb.org/settings/api).
 
 ### Run locally
 
@@ -65,75 +77,118 @@ Create a `.env` file in the project root:
 TMDB_API_KEY=your_tmdb_api_key_here
 ```
 
-Then start the addon:
+Start the server:
 
 ```bash
 npm start
 ```
 
-Open the address printed in the console to reach the configuration page.
+Open the local address printed by the server to access the configuration page.
 
-### Deploy
+### Deploying
 
-The addon runs on any Node host. A Vercel deployment works too. After deploying, set the same environment variables in your host's dashboard and redeploy.
+The project is designed to run as a Node.js web service and includes support for Vercel deployment.
+
+1. Import the repository into your hosting provider.
+2. Configure the environment variables required by your setup.
+3. Deploy the project.
+4. Open the deployed configuration page and install the generated manifest in Stremio.
+
+After changing environment variables in your hosting dashboard, redeploy so the running application receives the updated values.
 
 ## Environment variables
 
-| Variable | Required | Description |
-| --- | --- | --- |
-| `TMDB_API_KEY` | Yes | Used to look up titles and IMDb IDs |
-| `ENABLE_CINEJOY_PROVIDER` | No | Set to `false` to disable Cinejoy server-wide |
-| `ENABLE_VAPLAYER_PROVIDER` | No | Set to `false` to disable VAplayer server-wide |
-| `ENABLE_PLAYIMDB_PROVIDER` | No | Set to `false` to disable PlayIMDb server-wide |
+### Required
 
-All `ENABLE_*_PROVIDER` flags default to enabled when they aren't set.
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `TMDB_API_KEY` | Yes | Looks up title information and IMDb IDs used by provider integrations |
+
+### Optional provider switches
+
+Set a provider variable to `false` to disable that provider server-wide. If omitted, the corresponding switch defaults to enabled.
+
+| Variable | Provider |
+| --- | --- |
+| `ENABLE_4KHDHUB_PROVIDER` | 4KHDHub |
+| `ENABLE_HDHUB4U_PROVIDER` | HDHub4u |
+| `ENABLE_PLAYIMDB_PROVIDER` | PlayIMDb |
+| `ENABLE_CINEJOY_PROVIDER` | Cinejoy |
+| `ENABLE_VAPLAYER_PROVIDER` | VAplayer |
+| `ENABLE_VIDZEE_PROVIDER` | VidZee |
+| `ENABLE_MP4HYDRA_PROVIDER` | MP4Hydra |
+| `ENABLE_UHDMOVIES_PROVIDER` | UHDMovies |
+| `ENABLE_MOVIESMOD_PROVIDER` | MoviesMod |
+| `ENABLE_TOPMOVIES_PROVIDER` | TopMovies |
+| `ENABLE_SOAPERTV_PROVIDER` | SoaperTV |
+| `ENABLE_MOVIESDRIVE_PROVIDER` | MoviesDrive |
+| `ENABLE_VIXSRC_PROVIDER` | Vixsrc |
+| `ENABLE_MOVIEBOX_PROVIDER` | MovieBox |
+
+Example:
+
+```env
+ENABLE_CINEJOY_PROVIDER=false
+ENABLE_VAPLAYER_PROVIDER=false
+```
+
+### Optional caching and external services
+
+| Variable | Purpose |
+| --- | --- |
+| `DISABLE_STREAM_CACHE=true` | Disables the add-on's stream cache; caching is enabled by default |
+| `USE_REDIS_CACHE=true` | Enables the optional Redis cache |
+| `REDIS_URL` | Redis connection URL; required when Redis caching is enabled |
+| `USE_EXTERNAL_PROVIDERS=true` | Enables configured external provider services |
+| `EXTERNAL_UHDMOVIES_URL` | External UHDMovies service base URL |
+| `EXTERNAL_TOPMOVIES_URL` | External TopMovies service base URL |
+| `EXTERNAL_MOVIESMOD_URL` | External MoviesMod service base URL |
+| `GA_MEASUREMENT_ID` | Optional Google Analytics 4 measurement ID |
+| `GA_API_SECRET` | Optional Google Analytics 4 Measurement Protocol secret |
+
+Do not commit API keys, cookies, Redis credentials, or other secrets to the repository. Store them in your hosting provider's environment-variable settings.
 
 ## Project structure
 
-```
+```text
 .
-├── addon.js            # Addon logic: provider fetching, caching, filtering, formatting
-├── manifest.json       # Stremio manifest (name, logo, resources)
+├── addon.js          # Add-on logic, provider orchestration, filtering and caching
+├── server.js         # Express server, routes and request configuration
+├── manifest.json     # Stremio add-on manifest
+├── package.json      # Dependencies and start script
 ├── views/
-│   └── index.html      # Configuration page
-├── providers/          # One file per provider
-│   ├── cinejoy.js
-│   ├── vaplayer.js
-│   └── ...
-└── nuvio-logo-256.png  # Addon logo
+│   └── index.html    # Configuration and installation page
+├── providers/        # Provider integrations and extractors
+└── nuvio-logo-256.png
 ```
 
-## Adding a provider
+## Adding or updating a provider
 
-1. Create `providers/yourprovider.js` that exports an async function returning an array of streams:
+1. Add or update the provider implementation in `providers/`.
+2. Export a function that returns an array of stream objects in the format expected by the add-on.
+3. Register the provider in `addon.js`, including its enable switch and result handling.
+4. Add or update its controls in `views/index.html`, if it should be configurable by users.
+5. Test movie and episode lookups, stream playback, and the configuration page before deploying.
 
-   ```js
-   // providers/yourprovider.js
-   async function getYourProviderStreams(tmdbId, mediaType, season, episode) {
-     // fetch and return: [{ name, title, url, quality, headers?, subtitles? }]
-     return [];
-   }
-   module.exports = { getYourProviderStreams };
-   ```
-
-2. In `addon.js`, add an `ENABLE_*` flag, import the function, add a fetch function that follows the existing providers (cache check, fetch, cache save), and add the provider to the results and ordering lists.
-3. In `views/index.html`, add a provider card and a checkbox with the matching `value` and a quality dropdown.
-
-The easiest way is to copy an existing provider such as Cinejoy and change the names.
+Use an existing provider integration as a reference so the new provider follows the project's stream format, error handling, and configuration conventions.
 
 ## Troubleshooting
 
-| Problem | Fix |
+| Problem | Things to check |
 | --- | --- |
-| Logo doesn't change in Stremio | Remove the addon and install it again, since Stremio caches the manifest |
-| A provider returns no streams | Its source site may be down or have changed. Try again later or disable it |
-| No titles or poor results | Check that `TMDB_API_KEY` is set and valid |
-| Config page loads but nothing installs | Make sure the deployed URL is HTTPS and reachable from your device |
+| A provider returns no results | The source site may be unavailable or may have changed. Check the server logs and try another provider. |
+| A stream appears but will not play | The host may require headers, may block the player, or may have an expired link. Try another returned source. |
+| The configuration page loads but installation fails | Confirm that the deployed service is reachable over HTTPS and that the manifest route is available. |
+| Title lookups fail or return incomplete results | Check that `TMDB_API_KEY` is set correctly in the hosting environment. |
+| A provider is missing | Check its server-side `ENABLE_*_PROVIDER` setting and the provider selection on the configuration page. |
+| Changes do not appear after deployment | Check the deployment status and confirm that the latest commit was deployed. |
 
 ## Disclaimer
 
-This project does not host, store or upload any media. It only searches publicly available third-party sources and passes the links to your player. You are responsible for how you use it and for following the laws in your country. The maintainers are not affiliated with any provider listed above.
+NuvioStreams does not host, store, or upload media. It retrieves and passes stream links from third-party sources to the user's player. Third-party sources may change, become unavailable, or provide content with different rights depending on location. Users are responsible for ensuring that their use complies with applicable laws and the terms of the services they access.
+
+NuvioStreams is an independent project and is not affiliated with Stremio or the third-party providers listed above.
 
 ## Credits
 
-Based on [tapframe/NuvioStreamsAddon](https://github.com/tapframe/NuvioStreamsAddon). Thanks to the original author and contributors for the foundation this project builds on.
+This project is based on [tapframe/NuvioStreamsAddon](https://github.com/tapframe/NuvioStreamsAddon). Thanks to the original author and contributors for the foundation.
