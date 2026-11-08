@@ -2041,11 +2041,14 @@ async function getStreams(tmdbId, type, season = null, episode = null) {
         const cacheKey = `4khdhub_resolved_urls_v3_${tmdbId}_${type}${season ? `_s${season}e${episode}` : ''}`;
 
         let streamingLinks = [];
+        let tmdbDetails = null;
 
         // 1. Check cache for resolved file hosting URLs first
         const cachedResolvedUrls = await getFromCache(cacheKey);
         if (cachedResolvedUrls && cachedResolvedUrls.length > 0) {
             console.log(`[4KHDHub] Cache HIT for ${cacheKey}. Using ${cachedResolvedUrls.length} cached resolved URLs.`);
+            // Cached URLs still need TMDB metadata so displayed titles remain human-readable.
+            tmdbDetails = await getTMDBDetails(tmdbId, type === 'series' ? 'tv' : type);
             // Process cached resolved URLs directly to final streaming links
             console.log(`[4KHDHub] Processing ${cachedResolvedUrls.length} cached resolved URLs to get streaming links.`);
             streamingLinks = await extractStreamingLinks(cachedResolvedUrls);
@@ -2060,7 +2063,7 @@ async function getStreams(tmdbId, type, season = null, episode = null) {
             const tmdbType = type === 'series' ? 'tv' : type;
 
             // Get TMDB details to get the actual title
-            const tmdbDetails = await getTMDBDetails(tmdbId, tmdbType);
+            tmdbDetails = await getTMDBDetails(tmdbId, tmdbType);
             if (!tmdbDetails || !tmdbDetails.title) {
                 console.log(`[4KHDHub] Could not fetch TMDB details for ID: ${tmdbId}`);
                 return [];
@@ -2203,8 +2206,39 @@ async function getStreams(tmdbId, type, season = null, episode = null) {
             streamingLinks = await extractStreamingLinks(resolvedUrls);
         }
 
-        // Filter out suspicious AMP/redirect URLs
+        // Replace unreliable host-generated filenames (sometimes numeric IDs) with the
+        // canonical TMDB movie/series title. Keep a real file size when the extractor found one.
+        if (!tmdbDetails) {
+            tmdbDetails = await getTMDBDetails(tmdbId, type === 'series' ? 'tv' : type);
+        }
+        if (tmdbDetails && tmdbDetails.title) {
+            const isSeries = type === 'series' || type === 'tv';
+            let displayTitle = tmdbDetails.title;
+            if (isSeries && season && episode) {
+                displayTitle += ` S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}`;
+            } else if (!isSeries && tmdbDetails.year) {
+                displayTitle += ` (${tmdbDetails.year})`;
+            }
+            streamingLinks = streamingLinks.map(link => {
+                const oldTitle = String(link.title || '');
+                const sizeMatch = oldTitle.match(/\\b\\d+(?:[.,]\\d+)?\\s*(?:GB|MB|KB)\\b/i);
+                return {
+                    ...link,
+                    title: sizeMatch ? `${displayTitle}\\n${sizeMatch[0]}` : displayTitle
+                };
+            });
+        }
+
+        // Only expose FSL Server and Pixeldrain in Stremio.
+        // Other extractors (including 10Gbps) stay implemented above but are not shown to users.
         const filteredLinks = streamingLinks.filter(link => {
+            if (!link || !link.url) return false;
+            const serverName = String(link.name || '');
+            const isAllowedServer = /\\bFSL(?:\\s+Server)?\\b/i.test(serverName) || /\\bPixeldrain\\b/i.test(serverName);
+            if (!isAllowedServer) {
+                console.log(`[4KHDHub] Hiding non-FSL/Pixeldrain server: ${serverName || link.url}`);
+                return false;
+            }
             const url = link.url.toLowerCase();
             const suspiciousPatterns = [
                 'www-google-com.cdn.ampproject.org',
