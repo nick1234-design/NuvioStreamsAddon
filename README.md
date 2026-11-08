@@ -24,7 +24,7 @@ Provider availability, link quality, playback compatibility, and response times 
 
 ## Provider integrations
 
-The repository currently includes integrations for:
+The add-on is configured to expose only these six working providers:
 
 | Provider | Notes |
 | --- | --- |
@@ -34,17 +34,8 @@ The repository currently includes integrations for:
 | PlayIMDb | Direct-link extraction |
 | Cinejoy | Stream links and subtitles when supplied |
 | VAplayer | Stream links and subtitles when supplied |
-| VidZee | Provider integration |
-| MP4Hydra | Provider integration |
-| UHDMovies | Provider integration; can use an external provider service |
-| MoviesMod | Provider integration; can use an external provider service |
-| TopMovies | Provider integration; can use an external provider service |
-| SoaperTV | Provider integration |
-| MoviesDrive | Provider integration |
-| Vixsrc | Provider integration |
-| MovieBox | Provider integration |
 
-The configuration page and server-side settings determine which integrations are available for a given installation. Not every provider is guaranteed to return results for every title.
+Other legacy provider code remains in the repository for compatibility, but it is disabled and does not appear in stream results. Not every enabled provider is guaranteed to return results for every title.
 
 ## Installation
 
@@ -115,15 +106,6 @@ Set a provider variable to `false` to disable that provider server-wide. If omit
 | `ENABLE_PLAYIMDB_PROVIDER` | PlayIMDb |
 | `ENABLE_CINEJOY_PROVIDER` | Cinejoy |
 | `ENABLE_VAPLAYER_PROVIDER` | VAplayer |
-| `ENABLE_VIDZEE_PROVIDER` | VidZee |
-| `ENABLE_MP4HYDRA_PROVIDER` | MP4Hydra |
-| `ENABLE_UHDMOVIES_PROVIDER` | UHDMovies |
-| `ENABLE_MOVIESMOD_PROVIDER` | MoviesMod |
-| `ENABLE_TOPMOVIES_PROVIDER` | TopMovies |
-| `ENABLE_SOAPERTV_PROVIDER` | SoaperTV |
-| `ENABLE_MOVIESDRIVE_PROVIDER` | MoviesDrive |
-| `ENABLE_VIXSRC_PROVIDER` | Vixsrc |
-| `ENABLE_MOVIEBOX_PROVIDER` | MovieBox |
 
 Example:
 
