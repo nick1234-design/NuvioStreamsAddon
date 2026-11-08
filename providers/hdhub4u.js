@@ -1614,6 +1614,26 @@ function chooseStream(probes) {
 /**
  * Main function to get streams for TMDB content
  */
+// Remove repeated copies of the exact same destination without collapsing different servers,
+// qualities, or file variants. URL fragments do not affect the media resource.
+function dedupeByStreamUrl(items) {
+    const seen = new Set();
+    return items.filter(item => {
+        if (!item || !item.url) return true;
+        let key = String(item.url).trim();
+        try {
+            const parsed = new URL(key);
+            parsed.hash = '';
+            key = parsed.toString();
+        } catch (e) {
+            // Keep an unparseable URL as-is; validation will handle it later.
+        }
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
 async function getHDHub4uStreams(tmdbId, mediaType, title, year = null, seasonNum = null, episodeNum = null) {
     try {
         log(`[HDHub4u] ===== STARTING STREAM FETCH =====`);
@@ -1625,14 +1645,18 @@ async function getHDHub4uStreams(tmdbId, mediaType, title, year = null, seasonNu
         await fetchAndUpdateDomain();
 
         // Define cache key
-        const cacheKey = `hdhub4u_final_v3_${mediaType}_${tmdbId}${seasonNum ? `_s${seasonNum}` : ''}${episodeNum ? `_e${episodeNum}` : ''}`;
+        const cacheKey = `hdhub4u_final_v4_${mediaType}_${tmdbId}${seasonNum ? `_s${seasonNum}` : ''}${episodeNum ? `_e${episodeNum}` : ''}`;
         log(`[HDHub4u] Cache key: ${cacheKey}`);
 
         // Try to get from cache first
         const cachedData = await getFromCache(cacheKey);
         if (cachedData && cachedData.length > 0) {
-            log(`[HDHub4u] Returning ${cachedData.length} cached streams`);
-            return cachedData;
+            const dedupedCachedData = dedupeByStreamUrl(cachedData);
+            if (dedupedCachedData.length !== cachedData.length) {
+                await saveToCache(cacheKey, dedupedCachedData);
+            }
+            log(`[HDHub4u] Returning ${dedupedCachedData.length} cached streams after duplicate check`);
+            return dedupedCachedData;
         } else if (cachedData && cachedData.length === 0) {
             log(`[HDHub4u] Cache contains empty data for ${cacheKey}. Refetching from source.`);
         }
@@ -1722,8 +1746,9 @@ async function getHDHub4uStreams(tmdbId, mediaType, title, year = null, seasonNu
         // Get download links
         trace(`matched "${bestMatch.title}"`);
         const epWanted = (episodeNum !== null && episodeNum !== undefined && episodeNum !== '') ? parseInt(episodeNum, 10) : null;
-        const { finalLinks, isMovie } = await getDownloadLinks(bestMatch.url, mediaType, Number.isNaN(epWanted) ? null : epWanted);
-        trace(`extracted ${finalLinks.length} links (${isMovie ? 'movie' : 'series'})`);
+        const { finalLinks: extractedLinks, isMovie } = await getDownloadLinks(bestMatch.url, mediaType, Number.isNaN(epWanted) ? null : epWanted);
+        const finalLinks = dedupeByStreamUrl(extractedLinks);
+        trace(`extracted ${extractedLinks.length} links; ${finalLinks.length} remain after duplicate URL check (${isMovie ? 'movie' : 'series'})`);
 
         if (finalLinks.length === 0) {
             log(`[HDHub4u] No download links found`);
@@ -1937,7 +1962,7 @@ async function getHDHub4uStreams(tmdbId, mediaType, title, year = null, seasonNu
         // Wait for all group validations to complete
         log(`[HDHub4u] Starting parallel validation of ${streamGroups.size} groups...`);
         const validationResults = await Promise.all(validationPromises);
-        const uniqueStreams = validationResults.filter(stream => stream !== null);
+        const uniqueStreams = dedupeByStreamUrl(validationResults.filter(stream => stream !== null));
 
         // Sort by quality (highest first)
         uniqueStreams.sort((a, b) => {
