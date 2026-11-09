@@ -1727,7 +1727,7 @@ builder.defineStreamHandler(async (args) => {
             // No cache or expired, fetch fresh
             try {
                 console.log(`[PlayIMDb] Fetching new streams...`);
-                const streams = await getPlayIMDbStreams(tmdbId, tmdbTypeFromId, seasonNum, episodeNum);
+                const streams = await getPlayIMDbStreams(tmdbId, type, seasonNum, episodeNum);
 
                 if (streams && streams.length > 0) {
                     console.log(`[PlayIMDb] Successfully fetched ${streams.length} streams.`);
