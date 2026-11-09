@@ -620,6 +620,11 @@ const getStreamCacheKey = (provider, type, id, seasonNum = null, episodeNum = nu
         key += `_s${seasonNum}e${episodeNum}`;
     }
 
+    // HDHub4u stream labels/server names changed; isolate the new format from old cached results.
+    if (provider.toLowerCase() === 'hdhub4u') {
+        key += '_server_labels_v1';
+    }
+
     // For ShowBox with custom cookie/region, add those to the cache key
     if (provider.toLowerCase() === 'showbox' && (region || cookie)) {
         key += '_custom';
