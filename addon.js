@@ -2011,13 +2011,35 @@ builder.defineStreamHandler(async (args) => {
 
         // --- NEW: Special handling for PlayIMDb to use its pre-formatted name/title, headers and subtitles ---
         if (stream.provider === 'PlayIMDb') {
+            // PlayIMDb requires Origin/Referer/User-Agent headers when Stremio
+            // fetches the protected media URL. Preserve them using Stremio's
+            // supported behaviorHints.proxyHeaders.request field.
+            const playImdbHeaders = stream.headers && typeof stream.headers === 'object'
+                ? stream.headers
+                : null;
+            const playImdbBehaviorHints = {
+                ...(stream.behaviorHints || {}),
+                notWebReady: true
+            };
+
+            if (playImdbHeaders && Object.keys(playImdbHeaders).length > 0) {
+                const existingProxyHeaders = playImdbBehaviorHints.proxyHeaders || {};
+                playImdbBehaviorHints.proxyHeaders = {
+                    ...existingProxyHeaders,
+                    request: {
+                        ...(existingProxyHeaders.request || {}),
+                        ...playImdbHeaders
+                    }
+                };
+            }
+
             const playImdbStream = {
-                name: stream.name,    // e.g., "PlayIMDb Server 1 - 1080p"
-                title: stream.title,  // Multi-line card built by providers/playimdb.js
+                name: stream.name,
+                title: stream.title,
                 url: stream.url,
                 type: 'url',
                 availability: 2,
-                behaviorHints: stream.behaviorHints || { notWebReady: true }
+                behaviorHints: playImdbBehaviorHints
             };
             if (Array.isArray(stream.subtitles) && stream.subtitles.length > 0) {
                 playImdbStream.subtitles = stream.subtitles;
