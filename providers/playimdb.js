@@ -18,35 +18,58 @@ var _0x591515=_0x351c;function _0xad54(){var _0x5b8953=['Aw5JBhvKzxm','mJC5nZe0m
 const _pluginGetStreams = getStreams;
 
 /**
- * Standard addon provider signature.
- * @param {string|number} tmdbId
- * @param {string} mediaType 'movie' | 'tv' ('series' accepted)
- * @param {number|null} seasonNum   required for tv
- * @param {number|null} episodeNum  required for tv
- * @returns {Promise<Array>} [{ name, title, url, quality, type, headers, behaviorHints, provider }]
+ * Adapt the proven PlayIMDb scraper output for NuvioStreams/Stremio.
+ * Keep the original request headers and subtitles attached to each stream.
  */
 async function getPlayIMDbStreams(tmdbId, mediaType, seasonNum = null, episodeNum = null) {
   try {
     if (!tmdbId) return [];
+
     const type = (mediaType === 'tv' || mediaType === 'series') ? 'tv' : 'movie';
     if (type === 'tv' && (!seasonNum || !episodeNum)) return [];
+
     if (!process.env.TMDB_API_KEY) {
       console.warn('[PlayIMDb] TMDB_API_KEY not set: titles/years in stream text will be generic.');
     }
+
     const raw = await _pluginGetStreams(String(tmdbId), type, seasonNum, episodeNum);
     if (!Array.isArray(raw)) return [];
+
     return raw
       .filter((s) => s && typeof s.url === 'string' && s.url)
-      .map((s) => ({
-        name: s.name,
-        title: s.title,
-        url: s.url,
-        quality: s.quality,
-        type: 'url',
-        headers: s.headers ? { ...s.headers } : undefined,
-        behaviorHints: { notWebReady: true },
-        provider: 'PlayIMDb'
-      }));
+      .map((s) => {
+        const headers = s.headers && typeof s.headers === 'object'
+          ? { ...s.headers }
+          : undefined;
+
+        const behaviorHints = {
+          ...(s.behaviorHints || {}),
+          notWebReady: true
+        };
+
+        if (headers && Object.keys(headers).length > 0) {
+          const existingProxyHeaders = behaviorHints.proxyHeaders || {};
+          behaviorHints.proxyHeaders = {
+            ...existingProxyHeaders,
+            request: {
+              ...(existingProxyHeaders.request || {}),
+              ...headers
+            }
+          };
+        }
+
+        return {
+          name: s.name,
+          title: s.title,
+          url: s.url,
+          quality: s.quality,
+          type: 'url',
+          headers,
+          subtitles: Array.isArray(s.subtitles) ? s.subtitles : undefined,
+          behaviorHints,
+          provider: 'PlayIMDb'
+        };
+      });
   } catch (err) {
     console.error('[PlayIMDb] getPlayIMDbStreams error:', err && err.message ? err.message : err);
     return [];
