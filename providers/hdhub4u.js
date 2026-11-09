@@ -1614,6 +1614,25 @@ function chooseStream(probes) {
 /**
  * Main function to get streams for TMDB content
  */
+// Friendly labels for the actual download host/server exposed by HDHub4u.
+function getHDHub4uServerLabel(source) {
+    const value = String(source || '').toLowerCase();
+    if (value.includes('pixeldrain')) return 'Pixeldrain';
+    if (value.includes('fslv2')) return 'FSLv2';
+    if (/\bfsl\b/.test(value)) return 'FSL';
+    if (value.includes('10gbps')) return '10Gbps';
+    if (/\br2\b|cloudflare.?storage/.test(value)) return 'R2';
+    if (value.includes('zipdisk')) return 'ZipDisk';
+    if (value.includes('buzzserver')) return 'BuzzServer';
+    if (/\bs3\b/.test(value)) return 'S3';
+    if (value.includes('mega')) return 'Mega';
+    if (value.includes('hubcloud')) return 'HubCloud';
+    if (value.includes('hubcdn')) return 'HubCDN';
+    if (value.includes('hubstream')) return 'HubStream';
+    if (value.includes('hdstream4u')) return 'HDStream4u';
+    return String(source || 'Direct Link').trim() || 'Direct Link';
+}
+
 // Remove repeated copies of the exact same destination without collapsing different servers,
 // qualities, or file variants. URL fragments do not affect the media resource.
 // Collapse the same media file when HDHub4u exposes it through more than one server.
@@ -1638,9 +1657,10 @@ function dedupeEquivalentStreams(items) {
             .replace(/\.[a-z0-9]{2,5}$/i, '')
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '');
+        const server = getHDHub4uServerLabel(item.source);
         const key = normalizedName
-            ? [quality, episode, size, normalizedName].join('|')
-            : [quality, episode, String(item.url).trim()].join('|');
+            ? [quality, episode, size, server, normalizedName].join('|')
+            : [quality, episode, server, String(item.url).trim()].join('|');
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
@@ -1810,17 +1830,15 @@ async function getHDHub4uStreams(tmdbId, mediaType, title, year = null, seasonNu
             .map(item => {
                 const { quality, sizeText, link } = item;
 
-                // Create abbreviated source names
-                const sourceAbbrev = link.source.includes('Pixeldrain') ? 'PD' :
-                    link.source.includes('HubCloud') ? 'HC' :
-                        link.source.substring(0, 2).toUpperCase();
+                // Show the actual host/server instead of hiding every HubCloud variant as "HC".
+                const sourceLabel = getHDHub4uServerLabel(link.source);
 
-                // Simple title without verbose source information
+                // Keep the title clean; the server is displayed in the stream name.
                 let title = `${quality}p`;
                 if (link.episode) title += ` - Episode ${link.episode}`;
 
                 return {
-                    name: `HDHub4u-${quality}p | ${sourceAbbrev}`,
+                    name: `HDHub4u - ${quality}p | ${sourceLabel}`,
                     title: title,
                     url: link.url,
                     quality: quality.toString(),
@@ -1839,10 +1857,10 @@ async function getHDHub4uStreams(tmdbId, mediaType, title, year = null, seasonNu
         // Group streams by source and quality, then validate and select best link
         const streamGroups = new Map();
 
-        // Group streams by quality + source type to allow both HubCloud and Pixeldrain
+        // Keep one preferred link per quality AND actual server, so FSL, R2,
+        // Pixeldrain, 10Gbps, etc. can each appear as separate selectable streams.
         for (const stream of streams) {
-            const sourceType = stream.source.includes('HubCloud') ? 'HubCloud' :
-                stream.source.includes('Pixeldrain') ? 'Pixeldrain' : 'Other';
+            const sourceType = getHDHub4uServerLabel(stream.source);
             const groupKey = `${stream.quality}_${sourceType}`;
             if (!streamGroups.has(groupKey)) {
                 streamGroups.set(groupKey, []);
