@@ -25,8 +25,11 @@ async function getPlayIMDbStreams(tmdbId, mediaType, seasonNum = null, episodeNu
   try {
     if (!tmdbId) return [];
 
-    const type = (mediaType === 'tv' || mediaType === 'series') ? 'tv' : 'movie';
-    if (type === 'tv' && (!seasonNum || !episodeNum)) return [];
+    // Keep the Stremio media type exactly as supplied by addon.js.
+    // The working PlayIMDb scraper expects 'movie' or 'series', not 'tv'.
+    const type = mediaType === 'movie' ? 'movie' : 'series';
+    const tmdbType = (mediaType === 'tv' || mediaType === 'series') ? 'tv' : 'movie';
+    if (tmdbType === 'tv' && (!seasonNum || !episodeNum)) return [];
 
     if (!process.env.TMDB_API_KEY) {
       console.warn('[PlayIMDb] TMDB_API_KEY not set: titles/years in stream text will be generic.');
