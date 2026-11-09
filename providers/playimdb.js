@@ -94,7 +94,7 @@ var __defProp = Object[_0x591515(180)], __defProps = Object[_0x591515(182)], __g
     }, _0x597fac = (_0x538a38) => _0x538a38[_0x129858(176)] ? _0x9bda57(_0x538a38["value"]) : Promise[_0x129858(197)](_0x538a38["value"])[_0x129858(152)](_0x548817, _0x2a2afe);
     _0x597fac((_0x488249 = _0x488249["apply"](_0x37b65b, _0x170b08))[_0x129858(_0x32836b._0x30c019)]());
   });
-}, PROVIDER_NAME = _0x591515(170), BASE_API = "https://streamdata.vaplayer.ru/api.php", TMDB_API_KEY = process.env.TMDB_API_KEY || "", HEADERS = { "Origin": "https://nextgencloudfabric.com", "Referer": "https://nextgencloudfabric.com/", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" };
+}, PROVIDER_NAME = "PlayIMDb", BASE_API = "https://streamdata.vaplayer.ru/api.php", TMDB_API_KEY = process.env.TMDB_API_KEY || "", HEADERS = { "Origin": "https://nextgencloudfabric.com", "Referer": "https://nextgencloudfabric.com/", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" };
 function fetchWithTimeout(_0xb5554e, _0x3c5a3f) {
   return __async2(this, null, function* () {
     var _0x1a87ae = _0x351c, _0x4fdd10 = 1e4, _0x286913 = typeof AbortSignal !== "undefined" && AbortSignal["timeout"] ? AbortSignal["timeout"](_0x4fdd10) : null, _0x40eed4 = __spreadProps(__spreadValues({}, _0x3c5a3f), { "headers": __spreadValues(__spreadValues({}, HEADERS), (_0x3c5a3f == null ? void 0 : _0x3c5a3f["headers"]) || {}) });
