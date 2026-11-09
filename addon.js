@@ -2037,8 +2037,11 @@ builder.defineStreamHandler(async (args) => {
                 name: stream.name,
                 title: stream.title,
                 url: stream.url,
-                type: 'url',
+                type: stream.type || 'url',
                 availability: 2,
+                // Keep the original PlayIMDb headers on the stream object,
+                // just as the working 4KHDHub-Nick addon does.
+                ...(playImdbHeaders ? { headers: playImdbHeaders } : {}),
                 behaviorHints: playImdbBehaviorHints
             };
             if (Array.isArray(stream.subtitles) && stream.subtitles.length > 0) {
